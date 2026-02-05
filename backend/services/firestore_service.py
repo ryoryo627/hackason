@@ -75,6 +75,12 @@ class FirestoreService:
         doc_ref.set(data)
         return doc_ref.id
 
+    @classmethod
+    async def delete_facility(cls, org_id: str, facility_id: str) -> None:
+        """Delete a facility."""
+        db = cls.get_client()
+        db.collection("organizations").document(org_id).collection("facilities").document(facility_id).delete()
+
     # === Areas ===
 
     @classmethod
@@ -92,6 +98,12 @@ class FirestoreService:
         doc_ref = db.collection("organizations").document(org_id).collection("areas").document()
         doc_ref.set(data)
         return doc_ref.id
+
+    @classmethod
+    async def delete_area(cls, org_id: str, area_id: str) -> None:
+        """Delete an area."""
+        db = cls.get_client()
+        db.collection("organizations").document(org_id).collection("areas").document(area_id).delete()
 
     # === Patients ===
 

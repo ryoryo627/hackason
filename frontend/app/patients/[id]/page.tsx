@@ -1,67 +1,14 @@
 "use client";
 
-import { use } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AdminLayout } from "@/components/layout";
 import { Card, CardHeader, Button, RiskBadge, Badge } from "@/components/ui";
-import { ArrowLeft, Download, MessageSquare } from "lucide-react";
+import { ArrowLeft, Download, MessageSquare, Loader2, AlertTriangle } from "lucide-react";
+import { patientsApi, Patient, Report, Alert, BPSContext } from "@/lib/api";
 
-// Demo patient detail
-const demoPatient = {
-  id: "1",
-  name: "田中太郎",
-  name_kana: "タナカタロウ",
-  age: 85,
-  sex: "M" as const,
-  conditions: ["COPD", "高血圧", "糖尿病"],
-  facility: "本院",
-  area: "渋谷区",
-  tags: ["要注意", "独居"],
-  risk_level: "HIGH" as const,
-  slack_channel_name: "pt-田中太郎",
-  context: {
-    current_summary: `【BPS経過サマリー】田中太郎様（85歳男性）
-
-Bio: SpO2が1週間で96%→92%と低下傾向。発熱（37.4℃）、咳嗽・痰の増加あり。食欲低下継続。服薬アドヒアランス低下（アムロジピン3日未服用）。ADLは臥床傾向。
-
-Psycho: 意欲低下、表情暗い。認知機能の変化の可能性あり。抑うつ傾向を示唆する所見。
-
-Social: 主介護者である妻の体調不良により介護力低下。訪問看護の頻度増加を検討中。介護負担の増加が懸念される状況。`,
-    recommendations: [
-      { priority: "HIGH", text: "主治医への報告と診察依頼（発熱・SpO2低下の精査）" },
-      { priority: "HIGH", text: "服薬管理方法の見直し（一包化、服薬カレンダー等）" },
-      { priority: "MEDIUM", text: "訪問看護の頻度増加（週2回→3回）" },
-      { priority: "MEDIUM", text: "妻の介護負担軽減（レスパイト検討）" },
-    ],
-  },
-};
-
-const demoReports = [
-  {
-    id: "1",
-    reporter: "nurse",
-    reporter_name: "看護師A",
-    timestamp: "2026-02-05T10:30:00",
-    summary: "SpO2 92%、発熱37.4℃、咳嗽悪化、ぐったり",
-    alert_triggered: true,
-  },
-  {
-    id: "2",
-    reporter: "pharmacist",
-    reporter_name: "薬剤師C",
-    timestamp: "2026-02-03T14:00:00",
-    summary: "服薬アドヒアランス低下（アムロジピン3日未服用）",
-    alert_triggered: true,
-  },
-  {
-    id: "3",
-    reporter: "nurse",
-    reporter_name: "看護師B",
-    timestamp: "2026-02-01T09:15:00",
-    summary: "SpO2 93%、咳嗽・痰、食欲低下継続",
-    alert_triggered: true,
-  },
-];
+type RiskLevel = "HIGH" | "MEDIUM" | "LOW";
 
 const reporterLabels: Record<string, string> = {
   nurse: "看護師",
@@ -69,7 +16,167 @@ const reporterLabels: Record<string, string> = {
   care_manager: "ケアマネ",
   doctor: "医師",
   family: "家族",
+  therapist: "療法士",
+  other: "その他",
 };
+
+function BPSSummaryCard({ context }: { context: BPSContext | null }) {
+  if (!context) {
+    return (
+      <Card>
+        <CardHeader title="BPSサマリー" description="AIが生成した現在の状態サマリー" />
+        <div className="text-center py-8 text-gray-500">
+          まだサマリーが生成されていません
+        </div>
+      </Card>
+    );
+  }
+
+  // Format BPS context into readable summary
+  const formatBPSSection = (data: Record<string, unknown>, label: string): string => {
+    if (!data || Object.keys(data).length === 0) return "";
+    const items = Object.entries(data)
+      .filter(([, v]) => v !== null && v !== undefined && v !== "")
+      .map(([k, v]) => `${k}: ${v}`)
+      .join("、");
+    return items ? `【${label}】${items}` : "";
+  };
+
+  const bio = formatBPSSection(context.bio, "Bio");
+  const psycho = formatBPSSection(context.psycho, "Psycho");
+  const social = formatBPSSection(context.social, "Social");
+  const summary = [bio, psycho, social].filter(Boolean).join("\n\n");
+
+  return (
+    <Card>
+      <CardHeader title="BPSサマリー" description="AIが生成した現在の状態サマリー" />
+      {summary ? (
+        <div className="prose prose-sm max-w-none text-gray-600 whitespace-pre-line">
+          {summary}
+        </div>
+      ) : (
+        <div className="text-center py-8 text-gray-500">
+          BPS情報が収集されていません
+        </div>
+      )}
+      {context.last_updated && (
+        <p className="text-xs text-gray-400 mt-4">
+          最終更新: {new Date(context.last_updated).toLocaleString("ja-JP")}
+        </p>
+      )}
+    </Card>
+  );
+}
+
+function AlertsCard({ alerts }: { alerts: Alert[] }) {
+  const unacknowledged = alerts.filter((a) => !a.acknowledged);
+
+  return (
+    <Card>
+      <CardHeader
+        title="アラート"
+        description={`未確認: ${unacknowledged.length}件`}
+      />
+      {alerts.length === 0 ? (
+        <div className="text-center py-8 text-gray-500">
+          アラートはありません
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {alerts.slice(0, 5).map((alert) => (
+            <div
+              key={alert.id}
+              className={`flex items-start gap-3 p-3 rounded-lg ${
+                alert.acknowledged ? "bg-gray-50" : "bg-red-50"
+              }`}
+            >
+              <Badge
+                variant={
+                  alert.severity === "high"
+                    ? "danger"
+                    : alert.severity === "medium"
+                    ? "warning"
+                    : "default"
+                }
+                size="sm"
+              >
+                {alert.severity === "high" ? "緊急" : alert.severity === "medium" ? "注意" : "低"}
+              </Badge>
+              <div className="flex-1">
+                <p className="font-medium text-gray-900">{alert.title}</p>
+                <p className="text-sm text-gray-600">{alert.message}</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {new Date(alert.created_at).toLocaleString("ja-JP")}
+                </p>
+              </div>
+              {alert.acknowledged && (
+                <span className="text-xs text-green-600">確認済み</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function ReportsTimeline({ reports }: { reports: Report[] }) {
+  return (
+    <Card className="mt-6">
+      <CardHeader title="報告タイムライン" description="職種からの報告履歴" />
+      {reports.length === 0 ? (
+        <div className="text-center py-8 text-gray-500">
+          まだ報告がありません
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {reports.map((report) => (
+            <div
+              key={report.id}
+              className="flex items-start gap-4 p-4 border border-gray-200 rounded-lg"
+            >
+              <div className="flex-shrink-0">
+                <Badge variant="info" size="sm">
+                  {reporterLabels[report.reporter_role] || report.reporter_role}
+                </Badge>
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-medium text-gray-900">
+                    {report.reporter_name}
+                  </span>
+                </div>
+                <p className="text-gray-600 text-sm">{report.raw_text}</p>
+                {report.bps_classification && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {report.bps_classification.bio?.map((item, i) => (
+                      <Badge key={`bio-${i}`} variant="info" size="sm">
+                        Bio: {item}
+                      </Badge>
+                    ))}
+                    {report.bps_classification.psycho?.map((item, i) => (
+                      <Badge key={`psycho-${i}`} variant="warning" size="sm">
+                        Psycho: {item}
+                      </Badge>
+                    ))}
+                    {report.bps_classification.social?.map((item, i) => (
+                      <Badge key={`social-${i}`} variant="default" size="sm">
+                        Social: {item}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                <p className="text-sm text-gray-400 mt-2">
+                  {new Date(report.timestamp).toLocaleString("ja-JP")}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
 
 export default function PatientDetailPage({
   params,
@@ -77,7 +184,94 @@ export default function PatientDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const patient = demoPatient; // In real app, fetch by id
+  const router = useRouter();
+
+  const [patient, setPatient] = useState<Patient | null>(null);
+  const [reports, setReports] = useState<Report[]>([]);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [context, setContext] = useState<BPSContext | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchPatientData() {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const data = await patientsApi.get(id);
+        setPatient(data.patient);
+        setReports(data.recent_reports || []);
+        setAlerts(data.alerts || []);
+        setContext(data.context || null);
+      } catch (err) {
+        console.error("Patient fetch error:", err);
+        setError(err instanceof Error ? err.message : "患者データの取得に失敗しました");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchPatientData();
+  }, [id]);
+
+  const getRiskLevel = (level: string): RiskLevel => {
+    const normalizedLevel = level.toUpperCase();
+    if (normalizedLevel === "HIGH") return "HIGH";
+    if (normalizedLevel === "MEDIUM") return "MEDIUM";
+    return "LOW";
+  };
+
+  const handleSlackClick = () => {
+    if (patient?.slack_channel_name) {
+      // Open Slack channel (this would need proper Slack deep link)
+      window.open(
+        `slack://channel?team=&id=${patient.slack_channel_id}`,
+        "_blank"
+      );
+    }
+  };
+
+  if (loading) {
+    return (
+      <AdminLayout title="患者詳細">
+        <div className="flex justify-center py-20">
+          <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  if (error || !patient) {
+    return (
+      <AdminLayout title="患者詳細">
+        <div className="mb-6">
+          <Link
+            href="/patients"
+            className="inline-flex items-center text-gray-600 hover:text-gray-900"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            患者一覧に戻る
+          </Link>
+        </div>
+        <Card>
+          <div className="flex flex-col items-center py-12">
+            <AlertTriangle className="w-12 h-12 text-red-400 mb-4" />
+            <p className="text-red-600 font-medium">
+              {error || "患者が見つかりません"}
+            </p>
+            <Button
+              variant="secondary"
+              className="mt-4"
+              onClick={() => router.push("/patients")}
+            >
+              患者一覧に戻る
+            </Button>
+          </div>
+        </Card>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout title={`患者詳細: ${patient.name}`}>
@@ -98,32 +292,36 @@ export default function PatientDetailPage({
           <div>
             <div className="flex items-center gap-3 mb-2">
               <h2 className="text-2xl font-bold text-gray-900">{patient.name}</h2>
-              <RiskBadge level={patient.risk_level} />
+              <RiskBadge level={getRiskLevel(patient.risk_level)} />
             </div>
-            <p className="text-gray-500 mb-3">{patient.name_kana}</p>
+            {patient.name_kana && (
+              <p className="text-gray-500 mb-3">{patient.name_kana}</p>
+            )}
             <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-              <span>{patient.age}歳 / {patient.sex === "M" ? "男性" : "女性"}</span>
-              <span>事業所: {patient.facility}</span>
-              <span>地区: {patient.area}</span>
+              {patient.age && patient.gender && (
+                <span>
+                  {patient.age}歳 / {patient.gender === "male" ? "男性" : "女性"}
+                </span>
+              )}
+              {patient.facility && <span>事業所: {patient.facility}</span>}
+              {patient.area && <span>地区: {patient.area}</span>}
+              {patient.care_level && <span>介護度: {patient.care_level}</span>}
             </div>
             <div className="flex flex-wrap gap-2 mt-3">
-              {patient.conditions.map((condition) => (
-                <Badge key={condition} variant="info" size="sm">
-                  {condition}
+              {patient.primary_diagnosis && (
+                <Badge variant="info" size="sm">
+                  {patient.primary_diagnosis}
                 </Badge>
-              ))}
-              {patient.tags.map((tag) => (
-                <Badge key={tag} variant="warning" size="sm">
-                  {tag}
-                </Badge>
-              ))}
+              )}
             </div>
           </div>
           <div className="flex gap-2">
-            <Button variant="secondary">
-              <MessageSquare className="w-4 h-4 mr-2" />
-              Slack
-            </Button>
+            {patient.slack_channel_name && (
+              <Button variant="secondary" onClick={handleSlackClick}>
+                <MessageSquare className="w-4 h-4 mr-2" />
+                #{patient.slack_channel_name}
+              </Button>
+            )}
             <Button variant="secondary">
               <Download className="w-4 h-4 mr-2" />
               エクスポート
@@ -134,67 +332,14 @@ export default function PatientDetailPage({
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* BPS Summary */}
-        <Card>
-          <CardHeader title="BPSサマリー" description="AIが生成した現在の状態サマリー" />
-          <div className="prose prose-sm max-w-none text-gray-600 whitespace-pre-line">
-            {patient.context.current_summary}
-          </div>
-        </Card>
+        <BPSSummaryCard context={context} />
 
-        {/* Recommendations */}
-        <Card>
-          <CardHeader title="推奨事項" description="AIが提案するアクション" />
-          <div className="space-y-3">
-            {patient.context.recommendations.map((rec, index) => (
-              <div
-                key={index}
-                className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg"
-              >
-                <Badge
-                  variant={rec.priority === "HIGH" ? "danger" : "warning"}
-                  size="sm"
-                >
-                  {rec.priority === "HIGH" ? "高" : "中"}
-                </Badge>
-                <p className="text-gray-700">{rec.text}</p>
-              </div>
-            ))}
-          </div>
-        </Card>
+        {/* Alerts */}
+        <AlertsCard alerts={alerts} />
       </div>
 
       {/* Timeline */}
-      <Card className="mt-6">
-        <CardHeader title="報告タイムライン" description="職種からの報告履歴" />
-        <div className="space-y-4">
-          {demoReports.map((report) => (
-            <div
-              key={report.id}
-              className="flex items-start gap-4 p-4 border border-gray-200 rounded-lg"
-            >
-              <div className="flex-shrink-0">
-                <Badge variant="info" size="sm">
-                  {reporterLabels[report.reporter] || report.reporter}
-                </Badge>
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-medium text-gray-900">{report.reporter_name}</span>
-                  {report.alert_triggered && (
-                    <Badge variant="danger" size="sm">
-                      アラート発火
-                    </Badge>
-                  )}
-                </div>
-                <p className="text-gray-600">{report.summary}</p>
-                <p className="text-sm text-gray-400 mt-1">
-                  {new Date(report.timestamp).toLocaleString("ja-JP")}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
+      <ReportsTimeline reports={reports} />
     </AdminLayout>
   );
 }

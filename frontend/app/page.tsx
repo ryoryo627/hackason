@@ -1,52 +1,28 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { AdminLayout } from "@/components/layout";
 import { Card, CardHeader, Badge } from "@/components/ui";
-import { Users, AlertTriangle, FileText, Link as LinkIcon } from "lucide-react";
-
-// Demo stats for initial display
-const demoStats = {
-  total_patients: 24,
-  high_risk_patients: 4,
-  unacknowledged_alerts: 3,
-  recent_reports_24h: 12,
-  slack_connected: false,
-};
-
-const recentAlerts = [
-  {
-    id: "1",
-    patient_name: "田中太郎",
-    severity: "HIGH" as const,
-    pattern_name: "全軸複合",
-    created_at: "2026-02-05T09:30:00",
-  },
-  {
-    id: "2",
-    patient_name: "田中太郎",
-    severity: "HIGH" as const,
-    pattern_name: "複合Bio悪化",
-    created_at: "2026-02-03T14:20:00",
-  },
-  {
-    id: "3",
-    patient_name: "山田花子",
-    severity: "MEDIUM" as const,
-    pattern_name: "バイタル低下トレンド",
-    created_at: "2026-02-02T11:45:00",
-  },
-];
+import { Users, AlertTriangle, FileText, Link as LinkIcon, Loader2 } from "lucide-react";
+import {
+  dashboardApi,
+  DashboardStats,
+  ConnectionStatus,
+  Alert,
+} from "@/lib/api";
 
 function StatCard({
   title,
   value,
   icon: Icon,
   color,
+  loading,
 }: {
   title: string;
   value: number | string;
   icon: React.ComponentType<{ className?: string }>;
   color: string;
+  loading?: boolean;
 }) {
   return (
     <Card>
@@ -56,68 +32,154 @@ function StatCard({
         </div>
         <div>
           <p className="text-sm text-gray-500">{title}</p>
-          <p className="text-2xl font-bold text-gray-900">{value}</p>
+          {loading ? (
+            <div className="h-8 flex items-center">
+              <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+            </div>
+          ) : (
+            <p className="text-2xl font-bold text-gray-900">{value}</p>
+          )}
         </div>
       </div>
     </Card>
   );
 }
 
+function ConnectionItem({
+  name,
+  connected,
+  detail,
+}: {
+  name: string;
+  connected: boolean;
+  detail?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+      <div className="flex items-center gap-3">
+        <LinkIcon className="w-5 h-5 text-gray-400" />
+        <div>
+          <span className="font-medium">{name}</span>
+          {detail && <p className="text-xs text-gray-400">{detail}</p>}
+        </div>
+      </div>
+      <Badge variant={connected ? "success" : "default"}>
+        {connected ? "接続済み" : "未接続"}
+      </Badge>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchDashboardData() {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Fetch all dashboard data in parallel
+        const [statsData, alertsData, statusData] = await Promise.all([
+          dashboardApi.getStats(),
+          dashboardApi.getRecentAlerts(5),
+          dashboardApi.getConnectionStatus(),
+        ]);
+
+        setStats(statsData);
+        setAlerts(alertsData.alerts);
+        setConnectionStatus(statusData);
+      } catch (err) {
+        console.error("Dashboard data fetch error:", err);
+        setError(err instanceof Error ? err.message : "データの取得に失敗しました");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchDashboardData();
+  }, []);
+
   return (
     <AdminLayout title="ダッシュボード">
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+          {error}
+        </div>
+      )}
+
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard
           title="総患者数"
-          value={demoStats.total_patients}
+          value={stats?.total_patients ?? 0}
           icon={Users}
           color="bg-blue-500"
+          loading={loading}
         />
         <StatCard
           title="高リスク患者"
-          value={demoStats.high_risk_patients}
+          value={stats?.high_risk_patients ?? 0}
           icon={AlertTriangle}
           color="bg-red-500"
+          loading={loading}
         />
         <StatCard
           title="未確認アラート"
-          value={demoStats.unacknowledged_alerts}
+          value={stats?.unacknowledged_alerts ?? 0}
           icon={AlertTriangle}
           color="bg-yellow-500"
+          loading={loading}
         />
         <StatCard
           title="24時間の報告数"
-          value={demoStats.recent_reports_24h}
+          value={stats?.recent_reports_24h ?? 0}
           icon={FileText}
           color="bg-green-500"
+          loading={loading}
         />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Alerts */}
         <Card>
-          <CardHeader title="最近のアラート" description="直近のアラート通知" />
+          <CardHeader title="最近のアラート" description="直近の未確認アラート" />
           <div className="space-y-3">
-            {recentAlerts.map((alert) => (
-              <div
-                key={alert.id}
-                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-              >
-                <div className="flex items-center gap-3">
-                  <Badge variant={alert.severity === "HIGH" ? "danger" : "warning"}>
-                    {alert.severity === "HIGH" ? "緊急" : "注意"}
-                  </Badge>
-                  <div>
-                    <p className="font-medium text-gray-900">{alert.patient_name}</p>
-                    <p className="text-sm text-gray-500">{alert.pattern_name}</p>
-                  </div>
-                </div>
-                <time className="text-sm text-gray-400">
-                  {new Date(alert.created_at).toLocaleDateString("ja-JP")}
-                </time>
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
               </div>
-            ))}
+            ) : alerts.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                未確認のアラートはありません
+              </div>
+            ) : (
+              alerts.map((alert) => (
+                <div
+                  key={alert.id}
+                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                >
+                  <div className="flex items-center gap-3">
+                    <Badge variant={alert.severity === "high" ? "danger" : "warning"}>
+                      {alert.severity === "high" ? "緊急" : "注意"}
+                    </Badge>
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        {alert.patient_name || "患者名不明"}
+                      </p>
+                      <p className="text-sm text-gray-500">{alert.title}</p>
+                    </div>
+                  </div>
+                  <time className="text-sm text-gray-400">
+                    {new Date(alert.created_at).toLocaleDateString("ja-JP")}
+                  </time>
+                </div>
+              ))
+            )}
           </div>
         </Card>
 
@@ -125,29 +187,33 @@ export default function DashboardPage() {
         <Card>
           <CardHeader title="接続状態" description="外部サービスとの接続状態" />
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <LinkIcon className="w-5 h-5 text-gray-400" />
-                <span className="font-medium">Slack</span>
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
               </div>
-              <Badge variant={demoStats.slack_connected ? "success" : "default"}>
-                {demoStats.slack_connected ? "接続済み" : "未接続"}
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <LinkIcon className="w-5 h-5 text-gray-400" />
-                <span className="font-medium">Gemini API</span>
-              </div>
-              <Badge variant="default">未設定</Badge>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <LinkIcon className="w-5 h-5 text-gray-400" />
-                <span className="font-medium">Firestore</span>
-              </div>
-              <Badge variant="success">接続済み</Badge>
-            </div>
+            ) : (
+              <>
+                <ConnectionItem
+                  name="Slack"
+                  connected={connectionStatus?.slack.connected ?? false}
+                  detail={connectionStatus?.slack.team_name}
+                />
+                <ConnectionItem
+                  name="Gemini API"
+                  connected={connectionStatus?.gemini.connected ?? false}
+                  detail={connectionStatus?.gemini.model}
+                />
+                <ConnectionItem
+                  name="Vertex AI"
+                  connected={connectionStatus?.vertex.connected ?? false}
+                  detail={connectionStatus?.vertex.project_id}
+                />
+                <ConnectionItem
+                  name="Firestore"
+                  connected={connectionStatus?.firestore.connected ?? false}
+                />
+              </>
+            )}
           </div>
         </Card>
       </div>

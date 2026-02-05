@@ -30,6 +30,11 @@ class Settings(BaseSettings):
 
     # Gemini
     gemini_model: str = Field(default="gemini-3.0-flash")
+    gemini_api_key: str | None = Field(default=None)
+
+    # Slack (direct values for development, use Secret Manager in production)
+    slack_bot_token: str | None = Field(default=None)
+    slack_signing_secret: str | None = Field(default=None)
 
     # Admin UI URL (for CORS)
     admin_ui_url: str = Field(default="http://localhost:3000")

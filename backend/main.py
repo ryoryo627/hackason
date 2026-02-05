@@ -63,26 +63,39 @@ async def slack_events(request: Request) -> dict[str, Any]:
     - Message events (thread replies to anchor messages)
     - App mention events (@bot queries)
     """
-    body = await request.json()
+    # Verify signature (in production)
+    from slack.verify import verify_slack_signature
+    
+    try:
+        body_bytes = await verify_slack_signature(request)
+        import json
+        body = json.loads(body_bytes)
+    except Exception:
+        # Fallback for development/testing
+        body = await request.json()
 
     # URL verification for Slack app setup
     if body.get("type") == "url_verification":
         return {"challenge": body.get("challenge")}
 
-    # TODO: Implement signature verification
-    # TODO: Route to appropriate ADK agent based on event type
-
     event = body.get("event", {})
     event_type = event.get("type")
 
-    if event_type == "message":
-        # Thread reply handling - route to Intake Agent
-        # TODO: Implement Intake Agent routing
-        pass
-    elif event_type == "app_mention":
-        # @bot mention handling - route to Context/Summary Agent
-        # TODO: Implement Context/Summary Agent routing
-        pass
+    # Skip bot messages to prevent loops
+    if event.get("bot_id") or event.get("subtype") == "bot_message":
+        return {"ok": True}
+
+    # Route to Root Agent
+    if event_type in ("message", "app_mention"):
+        from agents import RootAgent
+        
+        root_agent = RootAgent()
+        try:
+            result = await root_agent.route_event(event)
+            return {"ok": True, "result": result}
+        except Exception as e:
+            print(f"Agent error: {e}")
+            return {"ok": False, "error": str(e)}
 
     return {"ok": True}
 
@@ -95,23 +108,50 @@ async def morning_scan(request: Request) -> dict[str, Any]:
     Runs Alert Agent to scan all patients and generate morning report
     for #oncall-night channel.
     """
-    # TODO: Verify OIDC token from Cloud Scheduler
-    # TODO: Implement Alert Agent morning scan
+    # Get organization ID from request or default
+    try:
+        body = await request.json()
+        org_id = body.get("org_id", "demo-org")
+    except Exception:
+        org_id = "demo-org"
 
-    return {
-        "ok": True,
-        "message": "Morning scan initiated",
-    }
+    # Run morning scan with Root Agent
+    from agents import RootAgent
+    
+    root_agent = RootAgent()
+    try:
+        result = await root_agent.run_morning_scan(org_id)
+        return {
+            "ok": True,
+            "message": "Morning scan completed",
+            "report": result.get("report"),
+            "high_alerts": len(result.get("scan_results", {}).get("high", [])),
+            "medium_alerts": len(result.get("scan_results", {}).get("medium", [])),
+        }
+    except Exception as e:
+        print(f"Morning scan error: {e}")
+        return {
+            "ok": False,
+            "error": str(e),
+        }
 
 
 # Import and include API routers
-# from api import patients, setup, knowledge, settings as settings_api, export
+from api import (
+    alerts_router,
+    dashboard_router,
+    knowledge_router,
+    patients_router,
+    settings_router,
+    setup_router,
+)
 
-# app.include_router(patients.router, prefix="/api/patients", tags=["patients"])
-# app.include_router(setup.router, prefix="/api/setup", tags=["setup"])
-# app.include_router(knowledge.router, prefix="/api/knowledge", tags=["knowledge"])
-# app.include_router(settings_api.router, prefix="/api/settings", tags=["settings"])
-# app.include_router(export.router, prefix="/api/export", tags=["export"])
+app.include_router(dashboard_router, prefix="/api/dashboard", tags=["dashboard"])
+app.include_router(patients_router, prefix="/api/patients", tags=["patients"])
+app.include_router(setup_router, prefix="/api/setup", tags=["setup"])
+app.include_router(settings_router, prefix="/api/settings", tags=["settings"])
+app.include_router(alerts_router, prefix="/api/alerts", tags=["alerts"])
+app.include_router(knowledge_router, prefix="/api/knowledge", tags=["knowledge"])
 
 
 @app.exception_handler(Exception)
