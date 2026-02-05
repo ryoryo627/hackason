@@ -106,8 +106,24 @@ async function apiRequest<T>(
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "APIエラー" }));
-    throw new Error(error.detail || `HTTP ${response.status}`);
+    const errorBody = await response.json().catch(() => ({ detail: "APIエラー" }));
+    // Handle FastAPI's various error formats
+    let errorMessage: string;
+    if (typeof errorBody.detail === "string") {
+      errorMessage = errorBody.detail;
+    } else if (Array.isArray(errorBody.detail)) {
+      // Pydantic validation errors return an array of error objects
+      errorMessage = errorBody.detail
+        .map((e: { msg?: string; loc?: string[] }) => e.msg || JSON.stringify(e))
+        .join(", ");
+    } else if (errorBody.message) {
+      errorMessage = errorBody.message;
+    } else if (errorBody.error) {
+      errorMessage = errorBody.error;
+    } else {
+      errorMessage = `HTTP ${response.status}`;
+    }
+    throw new Error(errorMessage);
   }
 
   return response.json();
