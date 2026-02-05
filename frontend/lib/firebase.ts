@@ -7,6 +7,8 @@ import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import {
   getAuth,
   signInWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
   signOut as firebaseSignOut,
   onAuthStateChanged,
   type Auth,
@@ -86,6 +88,26 @@ export async function signIn(
     return { user: result.user, error: null };
   } catch (error) {
     const message = error instanceof Error ? error.message : "ログインに失敗しました";
+    return { user: null, error: message };
+  }
+}
+
+// Google OAuth sign in
+export async function signInWithGoogle(): Promise<{ user: User | null; error: string | null }> {
+  if (isDemoMode()) {
+    return { user: null, error: "デモモードではGoogle認証は使用できません" };
+  }
+
+  try {
+    const firebaseAuth = getFirebaseAuth();
+    if (!firebaseAuth) {
+      return { user: null, error: "Firebase が設定されていません" };
+    }
+    const provider = new GoogleAuthProvider();
+    const result = await signInWithPopup(firebaseAuth, provider);
+    return { user: result.user, error: null };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Googleログインに失敗しました";
     return { user: null, error: message };
   }
 }

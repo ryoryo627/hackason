@@ -12,6 +12,7 @@ import {
   setDemoUser,
   clearDemoUser,
   signIn as firebaseSignIn,
+  signInWithGoogle as firebaseSignInWithGoogle,
   signOut as firebaseSignOut,
   type User,
 } from "@/lib/firebase";
@@ -22,6 +23,7 @@ export interface AuthState {
   isAuthenticated: boolean;
   isDemoMode: boolean;
   login: (email: string, password: string) => Promise<{ error: string | null }>;
+  loginWithGoogle: () => Promise<{ error: string | null }>;
   logout: () => Promise<void>;
 }
 
@@ -48,6 +50,14 @@ export function useAuth(): AuthState {
     return { error: result.error };
   }, [demoMode]);
 
+  const loginWithGoogle = useCallback(async () => {
+    const result = await firebaseSignInWithGoogle();
+    if (result.user) {
+      setUser(result.user);
+    }
+    return { error: result.error };
+  }, []);
+
   const logout = useCallback(async () => {
     if (demoMode) {
       clearDemoUser();
@@ -63,6 +73,7 @@ export function useAuth(): AuthState {
     isAuthenticated: !!user,
     isDemoMode: demoMode,
     login,
+    loginWithGoogle,
     logout,
   };
 }
