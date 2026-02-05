@@ -2,219 +2,94 @@
 
 import { useEffect, useState } from "react";
 import { AdminLayout } from "@/components/layout";
-import { Card, CardHeader, Button, Input, Badge } from "@/components/ui";
-import { Save, RefreshCw, CheckCircle, XCircle, Loader2 } from "lucide-react";
-import { settingsApi, setupApi } from "@/lib/api";
+import { Card, Button, Badge } from "@/components/ui";
+import { RefreshCw, CheckCircle, XCircle, Loader2, Info } from "lucide-react";
+import { setupApi } from "@/lib/api";
 
-interface ServiceConfig {
+interface ServiceStatus {
   id: string;
   name: string;
   description: string;
-  status: "connected" | "error" | "not_configured";
-  category: string;
-  fields: { key: string; label: string; type: string; value?: string }[];
+  connected: boolean;
+  detail?: string;
+  error?: string;
 }
 
-const statusConfig: Record<
-  string,
-  { variant: "success" | "danger" | "default"; label: string; icon: typeof CheckCircle }
-> = {
-  connected: { variant: "success", label: "接続済み", icon: CheckCircle },
-  error: { variant: "danger", label: "エラー", icon: XCircle },
-  not_configured: { variant: "default", label: "未設定", icon: XCircle },
-};
-
 export default function ApiSettingsPage() {
-  const [services, setServices] = useState<ServiceConfig[]>([
+  const [services, setServices] = useState<ServiceStatus[]>([
     {
-      id: "gemini",
-      name: "Gemini API",
-      description: "LLMによるBPS構造化・サマリー生成",
-      status: "not_configured",
-      category: "ai",
-      fields: [{ key: "api_key", label: "API Key", type: "password", value: "" }],
+      id: "firestore",
+      name: "Firestore",
+      description: "患者データ・レポートの保存",
+      connected: false,
     },
     {
       id: "slack",
       name: "Slack",
       description: "多職種コミュニケーションプラットフォーム",
-      status: "not_configured",
-      category: "integration",
-      fields: [
-        { key: "bot_token", label: "Bot User OAuth Token", type: "password", value: "" },
-        { key: "signing_secret", label: "Signing Secret", type: "password", value: "" },
-      ],
+      connected: false,
     },
     {
-      id: "vertex",
-      name: "Vertex AI",
-      description: "RAGナレッジベースのベクトル検索",
-      status: "not_configured",
-      category: "ai",
-      fields: [
-        { key: "project_id", label: "Project ID", type: "text", value: "" },
-        { key: "region", label: "Region", type: "text", value: "" },
-      ],
+      id: "gemini",
+      name: "Gemini API",
+      description: "LLMによるBPS構造化・サマリー生成",
+      connected: false,
     },
   ]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState<string | null>(null);
-  const [testing, setTesting] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Fetch configuration status
-  useEffect(() => {
-    async function fetchConfigs() {
-      try {
-        setLoading(true);
-        setError(null);
+  const fetchStatus = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-        const [geminiConfig, slackConfig, vertexConfig] = await Promise.all([
-          settingsApi.getGeminiConfig().catch(() => null),
-          settingsApi.getSlackConfig().catch(() => null),
-          settingsApi.getVertexConfig().catch(() => null),
-        ]);
+      const result = await setupApi.testBackend();
 
-        setServices((prev) =>
-          prev.map((service) => {
-            if (service.id === "gemini" && geminiConfig) {
-              return {
-                ...service,
-                status: geminiConfig.configured ? "connected" : "not_configured",
-                fields: service.fields.map((f) => ({
-                  ...f,
-                  value: f.key === "api_key" && geminiConfig.configured ? "••••••••" : "",
-                })),
-              };
-            }
-            if (service.id === "slack" && slackConfig) {
-              return {
-                ...service,
-                status: slackConfig.configured ? "connected" : "not_configured",
-                fields: service.fields.map((f) => ({
-                  ...f,
-                  value: slackConfig.configured ? "••••••••" : "",
-                })),
-              };
-            }
-            if (service.id === "vertex" && vertexConfig) {
-              return {
-                ...service,
-                status: vertexConfig.configured ? "connected" : "not_configured",
-                fields: service.fields.map((f) => ({
-                  ...f,
-                  value:
-                    f.key === "project_id"
-                      ? vertexConfig.project_id || ""
-                      : f.key === "region"
-                      ? vertexConfig.region || ""
-                      : "",
-                })),
-              };
-            }
-            return service;
-          })
-        );
-      } catch (err) {
-        console.error("Config fetch error:", err);
-        setError(err instanceof Error ? err.message : "設定の取得に失敗しました");
-      } finally {
-        setLoading(false);
-      }
+      setServices([
+        {
+          id: "firestore",
+          name: "Firestore",
+          description: "患者データ・レポートの保存",
+          connected: result.services.firestore.connected,
+          error: result.services.firestore.error,
+        },
+        {
+          id: "slack",
+          name: "Slack",
+          description: "多職種コミュニケーションプラットフォーム",
+          connected: result.services.slack.connected,
+          detail: result.services.slack.team_name,
+          error: result.services.slack.error,
+        },
+        {
+          id: "gemini",
+          name: "Gemini API",
+          description: "LLMによるBPS構造化・サマリー生成",
+          connected: result.services.gemini.connected,
+          detail: result.services.gemini.model,
+          error: result.services.gemini.error,
+        },
+      ]);
+    } catch (err) {
+      console.error("Status fetch error:", err);
+      setError(err instanceof Error ? err.message : "接続状態の取得に失敗しました");
+    } finally {
+      setLoading(false);
     }
+  };
 
-    fetchConfigs();
+  useEffect(() => {
+    fetchStatus();
   }, []);
 
-  // Update field value
-  const handleFieldChange = (serviceId: string, fieldKey: string, value: string) => {
-    setServices((prev) =>
-      prev.map((service) => {
-        if (service.id === serviceId) {
-          return {
-            ...service,
-            fields: service.fields.map((f) =>
-              f.key === fieldKey ? { ...f, value } : f
-            ),
-          };
-        }
-        return service;
-      })
-    );
-  };
-
-  // Save configuration
-  const handleSave = async (serviceId: string) => {
-    const service = services.find((s) => s.id === serviceId);
-    if (!service) return;
-
-    try {
-      setSaving(serviceId);
-      setError(null);
-
-      if (serviceId === "gemini") {
-        const apiKey = service.fields.find((f) => f.key === "api_key")?.value;
-        if (apiKey && apiKey !== "••••••••") {
-          await settingsApi.configureGemini({ apiKey });
-        }
-      } else if (serviceId === "slack") {
-        const botToken = service.fields.find((f) => f.key === "bot_token")?.value;
-        const signingSecret = service.fields.find((f) => f.key === "signing_secret")?.value;
-        if (botToken && botToken !== "••••••••" && signingSecret && signingSecret !== "••••••••") {
-          await setupApi.configureSlack({ botToken, signingSecret });
-        }
-      }
-
-      // Refresh config after save
-      setServices((prev) =>
-        prev.map((s) =>
-          s.id === serviceId ? { ...s, status: "connected" } : s
-        )
-      );
-    } catch (err) {
-      console.error("Save error:", err);
-      setError(err instanceof Error ? err.message : "保存に失敗しました");
-    } finally {
-      setSaving(null);
-    }
-  };
-
-  // Test connection
-  const handleTest = async (serviceId: string) => {
-    try {
-      setTesting(serviceId);
-      setError(null);
-
-      if (serviceId === "slack") {
-        const service = services.find((s) => s.id === "slack");
-        const botToken = service?.fields.find((f) => f.key === "bot_token")?.value || "";
-        const result = await setupApi.testSlackConnection(botToken);
-        if (result.success) {
-          setServices((prev) =>
-            prev.map((s) =>
-              s.id === serviceId ? { ...s, status: "connected" } : s
-            )
-          );
-        } else {
-          setServices((prev) =>
-            prev.map((s) =>
-              s.id === serviceId ? { ...s, status: "error" } : s
-            )
-          );
-          setError("Slack接続テストに失敗しました");
-        }
-      }
-    } catch (err) {
-      console.error("Test error:", err);
-      setError(err instanceof Error ? err.message : "接続テストに失敗しました");
-      setServices((prev) =>
-        prev.map((s) =>
-          s.id === serviceId ? { ...s, status: "error" } : s
-        )
-      );
-    } finally {
-      setTesting(null);
-    }
+  // Re-test connections
+  const handleRefresh = async () => {
+    setTesting(true);
+    await fetchStatus();
+    setTesting(false);
   };
 
   if (loading) {
@@ -229,9 +104,18 @@ export default function ApiSettingsPage() {
 
   return (
     <AdminLayout title="API設定">
-      <p className="text-gray-600 mb-6">
-        外部サービスとの連携設定。APIキーはSecret Managerに暗号化保存されます。
-      </p>
+      {/* Info Banner */}
+      <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-3">
+        <Info className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
+        <div className="text-sm text-blue-700">
+          <p className="font-medium mb-1">API Keyはバックエンドで管理されています</p>
+          <p>
+            Slack Bot Token、Signing Secret、Gemini API Key は
+            バックエンドデプロイ時に Secret Manager で設定されています。
+            変更が必要な場合は、Google Cloud Console の Secret Manager から更新してください。
+          </p>
+        </div>
+      </div>
 
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
@@ -239,67 +123,67 @@ export default function ApiSettingsPage() {
         </div>
       )}
 
-      <div className="space-y-6">
-        {services.map((service) => {
-          const status = statusConfig[service.status];
-          const StatusIcon = status.icon;
+      <div className="flex justify-between items-center mb-6">
+        <p className="text-gray-600">
+          外部サービスとの接続状態
+        </p>
+        <Button
+          variant="secondary"
+          onClick={handleRefresh}
+          disabled={testing}
+        >
+          {testing ? (
+            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+          ) : (
+            <RefreshCw className="w-4 h-4 mr-2" />
+          )}
+          再テスト
+        </Button>
+      </div>
 
-          return (
-            <Card key={service.id}>
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <div className="flex items-center gap-3">
-                    <h3 className="text-lg font-semibold text-gray-900">{service.name}</h3>
-                    <Badge variant={status.variant} size="sm">
-                      <StatusIcon className="w-3 h-3 mr-1" />
-                      {status.label}
-                    </Badge>
+      <div className="space-y-4">
+        {services.map((service) => (
+          <Card key={service.id}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                {service.connected ? (
+                  <div className="p-2 bg-green-100 rounded-lg">
+                    <CheckCircle className="w-6 h-6 text-green-600" />
                   </div>
-                  <p className="text-sm text-gray-500 mt-1">{service.description}</p>
+                ) : (
+                  <div className="p-2 bg-red-100 rounded-lg">
+                    <XCircle className="w-6 h-6 text-red-600" />
+                  </div>
+                )}
+                <div>
+                  <h3 className="font-semibold text-gray-900">{service.name}</h3>
+                  <p className="text-sm text-gray-500">{service.description}</p>
+                  {service.detail && (
+                    <p className="text-xs text-gray-400 mt-1">{service.detail}</p>
+                  )}
+                  {service.error && (
+                    <p className="text-xs text-red-500 mt-1">{service.error}</p>
+                  )}
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleTest(service.id)}
-                  disabled={testing === service.id || service.status === "not_configured"}
-                >
-                  {testing === service.id ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="w-4 h-4" />
-                  )}
-                </Button>
               </div>
+              <Badge variant={service.connected ? "success" : "danger"}>
+                {service.connected ? "接続済み" : "未接続"}
+              </Badge>
+            </div>
+          </Card>
+        ))}
+      </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {service.fields.map((field) => (
-                  <Input
-                    key={field.key}
-                    label={field.label}
-                    type={field.type}
-                    value={field.value || ""}
-                    onChange={(e) => handleFieldChange(service.id, field.key, e.target.value)}
-                    placeholder={field.type === "password" ? "••••••••" : `${field.label}を入力`}
-                  />
-                ))}
-              </div>
-
-              <div className="flex justify-end mt-4">
-                <Button
-                  onClick={() => handleSave(service.id)}
-                  disabled={saving === service.id}
-                >
-                  {saving === service.id ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  ) : (
-                    <Save className="w-4 h-4 mr-2" />
-                  )}
-                  保存
-                </Button>
-              </div>
-            </Card>
-          );
-        })}
+      {/* Secret Manager Link */}
+      <div className="mt-8 p-4 bg-gray-50 rounded-lg">
+        <h4 className="font-medium text-gray-900 mb-2">API Keyの変更方法</h4>
+        <ol className="text-sm text-gray-600 list-decimal list-inside space-y-1">
+          <li>Google Cloud Console にアクセス</li>
+          <li>セキュリティ → Secret Manager を開く</li>
+          <li>該当のシークレット（slack-bot-token, gemini-api-key など）を選択</li>
+          <li>「新しいバージョン」で新しい値を追加</li>
+          <li>Cloud Run サービスを再起動（必要に応じて）</li>
+        </ol>
       </div>
     </AdminLayout>
   );
