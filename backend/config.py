@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     embedding_model: str = Field(default="text-embedding-005")
 
     # Gemini
-    gemini_model: str = Field(default="gemini-3.0-flash")
+    gemini_model: str = Field(default="gemini-3-flash-preview")
     gemini_api_key: str | None = Field(default=None)
 
     # Slack (direct values for development, use Secret Manager in production)

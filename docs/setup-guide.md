@@ -456,7 +456,7 @@ gcloud run deploy homecare-bot \
   --allow-unauthenticated \
   --set-env-vars "GOOGLE_CLOUD_PROJECT=《Step1-3でメモしたプロジェクトID》" \
   --set-env-vars "GCP_REGION=asia-northeast1" \
-  --set-env-vars "GEMINI_MODEL=gemini-2.0-flash" \
+  --set-env-vars "GEMINI_MODEL=gemini-3-flash-preview" \
   --set-secrets "SLACK_BOT_TOKEN=slack-bot-token:latest" \
   --set-secrets "SLACK_SIGNING_SECRET=slack-signing-secret:latest" \
   --set-secrets "GEMINI_API_KEY=gemini-api-key:latest"
@@ -470,7 +470,7 @@ gcloud run deploy homecare-bot \
 | `--allow-unauthenticated` | 公開設定 | そのまま |
 | `GOOGLE_CLOUD_PROJECT=《...》` | プロジェクトID | **⚠️ 変更** |
 | `GCP_REGION=asia-northeast1` | リージョン | そのまま |
-| `GEMINI_MODEL=gemini-2.0-flash` | AIモデル | そのまま |
+| `GEMINI_MODEL=gemini-3-flash-preview` | AIモデル | そのまま |
 | `--set-secrets` の3行 | シークレット参照 | そのまま |
 
 デプロイが完了すると、以下のようなURLが表示されます：

@@ -36,7 +36,7 @@ GCS_BUCKET_NAME=homecare-ai-files
 GCS_KNOWLEDGE_BUCKET=homecare-ai-knowledge
 VERTEX_AI_REGION=asia-northeast1
 EMBEDDING_MODEL=text-embedding-005
-GEMINI_MODEL=gemini-3.0-flash
+GEMINI_MODEL=gemini-3-flash-preview
 ADMIN_UI_URL=http://localhost:3000
 ```
 

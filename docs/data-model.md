@@ -272,7 +272,7 @@ service_configs/{service_id}         # API設定（Secret Manager参照）
 
   // 設定値（機密でないもの）
   config: {
-    model?: string,                  // "gemini-3.0-flash"
+    model?: string,                  // "gemini-3-flash-preview"
     project_id?: string,
     region?: string,
     bucket_name?: string,

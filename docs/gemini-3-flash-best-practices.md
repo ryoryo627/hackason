@@ -6,7 +6,7 @@
 
 | 項目 | 値 |
 |------|-----|
-| モデルID | `gemini-3.0-flash` |
+| モデルID | `gemini-3-flash-preview` |
 | コンテキストウィンドウ | 1M tokens (入力) |
 | 最大出力トークン | 64K tokens |
 | 料金（入力） | $0.50 / 1M tokens |
@@ -51,7 +51,7 @@ Gemini 3.0では**Thought Signatures**が必須。これはモデルの内部思
 from google.generativeai import GenerativeModel
 
 class GeminiAgent:
-    def __init__(self, model_name="gemini-3.0-flash"):
+    def __init__(self, model_name="gemini-3-flash-preview"):
         self.model = GenerativeModel(model_name)
         self.thought_signatures = None
 

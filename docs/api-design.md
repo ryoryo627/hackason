@@ -459,7 +459,7 @@ Response 200:
       "category": "ai",
       "required": true,
       "status": "connected",
-      "config": { "model": "gemini-3.0-flash", "thinking_level": "medium" },
+      "config": { "model": "gemini-3-flash-preview", "thinking_level": "medium" },
       "has_secrets": true,
       "last_checked_at": "2026-02-05T14:32:00+09:00"
     }
@@ -473,7 +473,7 @@ Response 200:
 ```
 Request:
 {
-  "config": { "model": "gemini-3.0-flash", "thinking_level": "high" },
+  "config": { "model": "gemini-3-flash-preview", "thinking_level": "high" },
   "secrets": { "api_key": "AIzaXXX..." }  // Secret Managerに保存される
 }
 

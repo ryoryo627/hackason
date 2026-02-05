@@ -16,7 +16,7 @@ class GeminiConfigRequest(BaseModel):
     """Request body for Gemini configuration."""
     org_id: str = Field(..., description="Organization ID")
     api_key: str = Field(..., description="Gemini API Key")
-    model: str = Field("gemini-3.0-flash", description="Model to use")
+    model: str = Field("gemini-3-flash-preview", description="Model to use")
 
 
 class VertexConfigRequest(BaseModel):

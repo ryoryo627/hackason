@@ -528,7 +528,7 @@ export const settingsApi = {
       body: JSON.stringify({
         org_id: getOrgId(),
         api_key: data.apiKey,
-        model: data.model || "gemini-3.0-flash",
+        model: data.model || "gemini-3-flash-preview",
       }),
     });
   },

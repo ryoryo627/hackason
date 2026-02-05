@@ -22,7 +22,7 @@ Slackを患者ごとの情報集約ハブとし、Google Cloud上のAIエージ�
 
 - **言語**: Python 3.12（バックエンド）、TypeScript（フロントエンド）
 - **AIフレームワーク**: ADK (Agent Development Kit)
-- **LLM**: Gemini API (**gemini-3.0-flash**)
+- **LLM**: Gemini API (**gemini-3-flash-preview**)
 - **データベース**: Cloud Firestore
 - **ベクトル検索**: Vertex AI Vector Search + text-embedding-005
 - **ファイルストレージ**: Cloud Storage (GCS)

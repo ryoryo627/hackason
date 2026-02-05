@@ -49,7 +49,7 @@
 | レイヤー | 技術 | 用途 | バージョン |
 |---------|------|------|-----------|
 | AIエージェント | ADK | マルチエージェントオーケストレーション | latest |
-| LLM | Gemini API | BPS構造化・臨床推論・サマリー生成 | **gemini-3.0-flash** |
+| LLM | Gemini API | BPS構造化・臨床推論・サマリー生成 | **gemini-3-flash-preview** |
 | Embedding | text-embedding-005 | RAGナレッジベースのベクトル化 | - |
 | ベクトル検索 | Vertex AI Vector Search | RAG検索 | - |
 | データベース | Cloud Firestore | 患者・報告・アラート・設定の永続化 | - |
