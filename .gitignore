@@ -37,3 +37,6 @@ npm-debug.log*
 .coverage
 htmlcov/
 .pytest_cache/
+
+# Sensitive docs (contains API keys)
+docs/setup-guide.md
