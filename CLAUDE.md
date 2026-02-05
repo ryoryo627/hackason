@@ -1,5 +1,31 @@
 # CLAUDE.md — Claude Code 開発引き継ぎ指示書
 
+## Claude Code 作業ルール（必須）
+
+**毎回の応答で必ず守ること：**
+
+1. **作業開始前に確認**: このCLAUDE.md + Serenaメモリ (`list_memories()` → `read_memory()`)
+2. **仕様変更時は即保存**: このCLAUDE.mdまたはSerenaメモリに記録
+3. **過去の決定を忘れない**: セッション中の決定事項は即座に保存
+
+## デプロイ方法
+
+**ローカルMacから直接デプロイ（Cloud Shell不使用）**
+
+```bash
+# フロントエンド
+cd frontend && gcloud builds submit --config=cloudbuild.yaml
+
+# バックエンド
+cd backend && gcloud run deploy homecare-bot --source=. --region=asia-northeast1
+```
+
+**GCPプロジェクト情報:**
+- Project ID: `aihomecare-486506`
+- Region: `asia-northeast1`
+- Frontend Service: `homecare-admin`
+- Backend Service: `homecare-bot`
+
 ## プロジェクト概要
 
 **HomeCare AI Agent** — 在宅医療支援AIエージェントシステム
