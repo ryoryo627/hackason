@@ -134,6 +134,15 @@ export interface BackendTestResult {
   };
 }
 
+// API response types
+interface UserApiResponse {
+  uid: string;
+  email: string;
+  display_name?: string;
+  organization_id: string | null;
+  role: string;
+}
+
 export const setupApi = {
   /**
    * Get or create user document after login.
@@ -143,7 +152,7 @@ export const setupApi = {
     email: string;
     displayName?: string;
   }): Promise<UserData> => {
-    return apiRequest("/api/setup/user", {
+    return apiRequest<UserApiResponse>("/api/setup/user", {
       method: "POST",
       body: JSON.stringify({
         uid: data.uid,
@@ -167,7 +176,7 @@ export const setupApi = {
    * Get user by UID.
    */
   getUser: (uid: string): Promise<UserData> => {
-    return apiRequest(`/api/setup/user/${uid}`).then((response) => ({
+    return apiRequest<UserApiResponse>(`/api/setup/user/${uid}`).then((response) => ({
       uid: response.uid,
       email: response.email,
       displayName: response.display_name,
