@@ -10,7 +10,7 @@ from typing import Optional
 from fastapi import APIRouter, Query, UploadFile, File, HTTPException
 from pydantic import BaseModel
 
-from services.firestore_service import firestore_service
+from services.firestore_service import FirestoreService
 
 router = APIRouter()
 
@@ -62,7 +62,7 @@ async def list_documents(
 ):
     """List knowledge documents."""
     try:
-        db = firestore_service.get_db()
+        db = FirestoreService.get_client()
         query = db.collection("organizations").document(org_id).collection("knowledge")
 
         if category:
@@ -96,7 +96,7 @@ async def create_document(
     if category not in KNOWLEDGE_CATEGORIES:
         raise HTTPException(status_code=400, detail=f"Invalid category: {category}")
 
-    db = firestore_service.get_db()
+    db = FirestoreService.get_client()
     now = datetime.utcnow().isoformat()
 
     doc_data = {
@@ -141,7 +141,7 @@ async def upload_document_file(
             detail=f"Unsupported file type: {file.content_type}. Allowed: PDF, TXT, MD, DOCX",
         )
 
-    db = firestore_service.get_db()
+    db = FirestoreService.get_client()
     doc_ref = (
         db.collection("organizations")
         .document(org_id)
@@ -189,7 +189,7 @@ async def get_document(
     org_id: str = Query(...),
 ):
     """Get a knowledge document by ID."""
-    db = firestore_service.get_db()
+    db = FirestoreService.get_client()
     doc_ref = (
         db.collection("organizations")
         .document(org_id)
@@ -215,7 +215,7 @@ async def update_document(
     source: Optional[str] = Query(None),
 ):
     """Update a knowledge document."""
-    db = firestore_service.get_db()
+    db = FirestoreService.get_client()
     doc_ref = (
         db.collection("organizations")
         .document(org_id)
@@ -243,7 +243,7 @@ async def delete_document(
     org_id: str = Query(...),
 ):
     """Delete a knowledge document."""
-    db = firestore_service.get_db()
+    db = FirestoreService.get_client()
     doc_ref = (
         db.collection("organizations")
         .document(org_id)
@@ -277,7 +277,7 @@ async def search_knowledge(
     In production, this would use Vertex AI Vector Search.
     For demo, we do simple text matching.
     """
-    db = firestore_service.get_db()
+    db = FirestoreService.get_client()
 
     # Get all documents (in production, use Vector Search)
     docs_query = db.collection("organizations").document(org_id).collection("knowledge")
@@ -335,7 +335,7 @@ async def update_agent_bindings(
     agent_ids: list[str] = Query(...),
 ):
     """Update which agents can use this document."""
-    db = firestore_service.get_db()
+    db = FirestoreService.get_client()
     doc_ref = (
         db.collection("organizations")
         .document(org_id)
