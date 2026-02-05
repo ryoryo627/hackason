@@ -47,12 +47,12 @@ images:
   - 'asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/homecare-admin:$BUILD_ID'
   - 'asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/homecare-admin:latest'
 
-# Substitution variables (set these when triggering the build)
+# Substitution variables with your Firebase config
 substitutions:
-  _FIREBASE_API_KEY: ''
-  _FIREBASE_AUTH_DOMAIN: ''
-  _FIREBASE_PROJECT_ID: ''
-  _FIREBASE_STORAGE_BUCKET: ''
-  _FIREBASE_MESSAGING_SENDER_ID: ''
-  _FIREBASE_APP_ID: ''
-  _API_URL: ''
+  _FIREBASE_API_KEY: 'REDACTED_FIREBASE_API_KEY'
+  _FIREBASE_AUTH_DOMAIN: 'aihomecare-486506.firebaseapp.com'
+  _FIREBASE_PROJECT_ID: 'aihomecare-486506'
+  _FIREBASE_STORAGE_BUCKET: 'aihomecare-486506.firebasestorage.app'
+  _FIREBASE_MESSAGING_SENDER_ID: '900198832085'
+  _FIREBASE_APP_ID: 'REDACTED_FIREBASE_APP_ID'
+  _API_URL: 'https://homecare-bot-900198832085.asia-northeast1.run.app'

@@ -1,14 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AdminLayout } from "@/components/layout";
 import { Card, CardHeader, Badge } from "@/components/ui";
 import { Users, AlertTriangle, FileText, Link as LinkIcon, Loader2 } from "lucide-react";
 import {
   dashboardApi,
+  setupApi,
   DashboardStats,
   ConnectionStatus,
   Alert,
+  getOrgId,
 } from "@/lib/api";
 
 function StatCard({
@@ -71,13 +74,35 @@ function ConnectionItem({
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [checkingSetup, setCheckingSetup] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Check if organization exists, redirect to setup if not
   useEffect(() => {
+    async function checkOrganizationSetup() {
+      try {
+        await setupApi.getStatus();
+        // Organization exists, continue to dashboard
+        setCheckingSetup(false);
+      } catch (err) {
+        // Organization doesn't exist or error - redirect to setup
+        console.log("Organization not found, redirecting to setup...");
+        router.push("/setup");
+      }
+    }
+
+    checkOrganizationSetup();
+  }, [router]);
+
+  useEffect(() => {
+    // Don't fetch dashboard data until setup check is complete
+    if (checkingSetup) return;
+
     async function fetchDashboardData() {
       try {
         setLoading(true);
@@ -102,7 +127,19 @@ export default function DashboardPage() {
     }
 
     fetchDashboardData();
-  }, []);
+  }, [checkingSetup]);
+
+  // Show loading while checking setup
+  if (checkingSetup) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500 mx-auto mb-4" />
+          <p className="text-gray-500">読み込み中...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <AdminLayout title="ダッシュボード">
