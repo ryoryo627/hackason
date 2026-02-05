@@ -370,6 +370,18 @@ const firebaseConfig = {
 
 ## 7. バックエンドのデプロイ
 
+> **📋 この作業で使用する値（事前に確認）**
+>
+> | 参照元 | 必要な値 | 確認欄 |
+> |--------|---------|:------:|
+> | Step 1-3 | Google Cloud プロジェクトID | ☐ |
+> | Step 4 | Firebase API Key | ☐ |
+> | Step 5 | Slack Bot Token (`xoxb-...`) | ☐ |
+> | Step 5 | Slack Signing Secret | ☐ |
+> | Step 6 | Gemini API Key (`AIzaSy...`) | ☐ |
+>
+> **⚠️ すべての値が手元にあることを確認してから進めてください**
+
 ### 7.1 Cloud Shell の起動
 
 1. Google Cloud Console (https://console.cloud.google.com) を開く
@@ -382,37 +394,59 @@ const firebaseConfig = {
 
 Cloud Shell で以下のコマンドを実行：
 
+> **📝 凡例**
+> - `《ここを変更》` → あなたの値に置き換えてください
+> - それ以外 → そのままコピペでOK
+
 ```bash
-# プロジェクトIDを設定（実際のIDに置き換えてください）
-gcloud config set project homecare-ai-123456
+# プロジェクトIDを設定
+gcloud config set project 《Step1-3でメモしたプロジェクトID》
+```
+
+**例**: プロジェクトIDが `homecare-ai-prod-12345` の場合：
+```bash
+gcloud config set project homecare-ai-prod-12345
 ```
 
 ### 7.3 ソースコードの取得
 
 ```bash
-# ソースコードをダウンロード
-git clone https://github.com/your-org/homecare-ai.git
+# ソースコードをダウンロード（このままコピペOK）
+git clone https://github.com/ryoryo627/hackason.git
 
-# ディレクトリに移動
-cd homecare-ai/backend
+# ディレクトリに移動（このままコピペOK）
+cd hackason/backend
 ```
-
-> **注意**: 実際のリポジトリURLに置き換えてください
 
 ### 7.4 シークレットの設定
 
+⚠️ **重要**: 各コマンドの `《》` 部分を、前のステップでメモした実際の値に置き換えてから実行してください。
+
+**コマンド1: Slack Bot Token**
 ```bash
-# Slack Bot Token を登録
-echo -n "xoxb-your-token-here" | gcloud secrets create slack-bot-token --data-file=-
-
-# Slack Signing Secret を登録
-echo -n "your-signing-secret" | gcloud secrets create slack-signing-secret --data-file=-
-
-# Gemini API Key を登録
-echo -n "AIzaSy-your-key" | gcloud secrets create gemini-api-key --data-file=-
+echo -n "《Step5でメモしたBot Token（xoxb-で始まる）》" | gcloud secrets create slack-bot-token --data-file=-
 ```
 
+**コマンド2: Slack Signing Secret**
+```bash
+echo -n "《Step5でメモしたSigning Secret》" | gcloud secrets create slack-signing-secret --data-file=-
+```
+
+**コマンド3: Gemini API Key**
+```bash
+echo -n "《Step6でメモしたAPI Key（AIzaSyで始まる）》" | gcloud secrets create gemini-api-key --data-file=-
+```
+
+**入力例**:
+| コマンド | 置き換え前 | 形式の説明 |
+|---------|-----------|-----------|
+| 1 | `《Step5でメモしたBot Token》` | `xoxb-` で始まる長い文字列 |
+| 2 | `《Step5でメモしたSigning Secret》` | 32文字の英数字 |
+| 3 | `《Step6でメモしたAPI Key》` | `AIzaSy` で始まる文字列 |
+
 ### 7.5 バックエンドのデプロイ
+
+⚠️ **1箇所だけ変更が必要です**（それ以外はそのままコピペOK）
 
 ```bash
 # Cloud Run にデプロイ
@@ -420,7 +454,7 @@ gcloud run deploy homecare-bot \
   --source . \
   --region asia-northeast1 \
   --allow-unauthenticated \
-  --set-env-vars "GOOGLE_CLOUD_PROJECT=homecare-ai-123456" \
+  --set-env-vars "GOOGLE_CLOUD_PROJECT=《Step1-3でメモしたプロジェクトID》" \
   --set-env-vars "GCP_REGION=asia-northeast1" \
   --set-env-vars "GEMINI_MODEL=gemini-2.0-flash" \
   --set-secrets "SLACK_BOT_TOKEN=slack-bot-token:latest" \
@@ -428,13 +462,24 @@ gcloud run deploy homecare-bot \
   --set-secrets "GEMINI_API_KEY=gemini-api-key:latest"
 ```
 
+**変更箇所の確認**:
+| 行 | 内容 | 変更? |
+|----|------|:-----:|
+| `--source .` | カレントディレクトリ | そのまま |
+| `--region asia-northeast1` | 東京リージョン | そのまま |
+| `--allow-unauthenticated` | 公開設定 | そのまま |
+| `GOOGLE_CLOUD_PROJECT=《...》` | プロジェクトID | **⚠️ 変更** |
+| `GCP_REGION=asia-northeast1` | リージョン | そのまま |
+| `GEMINI_MODEL=gemini-2.0-flash` | AIモデル | そのまま |
+| `--set-secrets` の3行 | シークレット参照 | そのまま |
+
 デプロイが完了すると、以下のようなURLが表示されます：
 
 ```
-Service URL: https://homecare-bot-abc123-an.a.run.app
+Service URL: https://homecare-bot-xxxxxx-an.a.run.app
 ```
 
-このURLをメモしてください。
+📝 **このURLをメモしてください**（次のステップで使います）
 
 ### 7.6 Slack Event URL の設定
 
@@ -446,11 +491,15 @@ Service URL: https://homecare-bot-abc123-an.a.run.app
 
 4. **Request URL** に以下を入力：
    ```
+   《7.5でメモしたURL》/slack/events
+   ```
+
+   **例**: URLが `https://homecare-bot-abc123-an.a.run.app` の場合：
+   ```
    https://homecare-bot-abc123-an.a.run.app/slack/events
    ```
-   （`homecare-bot-abc123-an.a.run.app` は実際のURLに置き換え）
 
-5. **Verified** と表示されることを確認
+5. **Verified** と表示されることを確認（緑のチェックマーク）
 
 6. **Save Changes** をクリック
 
@@ -460,27 +509,36 @@ Service URL: https://homecare-bot-abc123-an.a.run.app
 
 ### 8.1 環境変数ファイルの作成
 
-Cloud Shell で以下を実行：
+Cloud Shell で以下を実行します。⚠️ **4箇所の変更が必要です**。
 
 ```bash
-# フロントエンドディレクトリに移動
+# フロントエンドディレクトリに移動（このままコピペOK）
 cd ../frontend
+```
 
-# 環境変数ファイルを作成
+次に、環境変数ファイルを作成します。下の枠内を**すべてコピーして**、`《》`の部分を置き換えてから貼り付けてください：
+
+```bash
 cat > .env.production << 'EOF'
-NEXT_PUBLIC_API_URL=https://homecare-bot-abc123-an.a.run.app
-NEXT_PUBLIC_FIREBASE_API_KEY=your-firebase-api-key
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=homecare-ai-123456.firebaseapp.com
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=homecare-ai-123456
+NEXT_PUBLIC_API_URL=《7.5でメモしたバックエンドURL》
+NEXT_PUBLIC_FIREBASE_API_KEY=《Step4でメモしたFirebase API Key》
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=《Step1-3のプロジェクトID》.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=《Step1-3のプロジェクトID》
 EOF
 ```
 
-> **注意**: 上記の値は実際の値に置き換えてください
+**入力例**:
+| 変数 | 置き換え後の例 |
+|------|--------------|
+| `NEXT_PUBLIC_API_URL` | `https://homecare-bot-abc123-an.a.run.app` |
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | `AIzaSyBcDeFgHiJkLmNoPqRsTuVwXyZ` |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | `homecare-ai-prod-12345.firebaseapp.com` |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | `homecare-ai-prod-12345` |
 
 ### 8.2 フロントエンドのデプロイ
 
 ```bash
-# Cloud Run にデプロイ
+# Cloud Run にデプロイ（このままコピペOK、変更不要）
 gcloud run deploy homecare-admin \
   --source . \
   --region asia-northeast1 \
@@ -490,19 +548,28 @@ gcloud run deploy homecare-admin \
 デプロイが完了すると、管理画面のURLが表示されます：
 
 ```
-Service URL: https://homecare-admin-xyz789-an.a.run.app
+Service URL: https://homecare-admin-xxxxxx-an.a.run.app
 ```
+
+📝 **このURLをメモしてください**（管理画面へのアクセスに使用）
 
 ### 8.3 CORS設定の更新
 
 1. Cloud Shell に戻る
 
-2. バックエンドの環境変数を更新：
+2. バックエンドの環境変数を更新（⚠️ **1箇所変更が必要**）：
 
 ```bash
 gcloud run services update homecare-bot \
   --region asia-northeast1 \
-  --set-env-vars "ADMIN_UI_URL=https://homecare-admin-xyz789-an.a.run.app"
+  --set-env-vars "ADMIN_UI_URL=《8.2でメモしたフロントエンドURL》"
+```
+
+**例**: フロントエンドURLが `https://homecare-admin-abc123-an.a.run.app` の場合：
+```bash
+gcloud run services update homecare-bot \
+  --region asia-northeast1 \
+  --set-env-vars "ADMIN_UI_URL=https://homecare-admin-abc123-an.a.run.app"
 ```
 
 ---
@@ -511,10 +578,9 @@ gcloud run services update homecare-bot \
 
 ### 9.1 管理画面へのアクセス
 
-1. ブラウザで管理画面のURLを開く：
-   ```
-   https://homecare-admin-xyz789-an.a.run.app
-   ```
+1. ブラウザで **8.2でメモしたフロントエンドURL** を開く
+
+   **例**: `https://homecare-admin-abc123-an.a.run.app`
 
 2. ログイン画面が表示されます
 
