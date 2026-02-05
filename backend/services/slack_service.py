@@ -32,13 +32,13 @@ class SlackService:
     async def test_connection(cls, token: str) -> dict[str, Any]:
         """
         Test Slack connection with the given token.
-        
+
         Returns:
             dict with success status, team info, and bot info
         """
         try:
             client = cls.get_client(token)
-            
+
             # Test auth
             auth_response = client.auth_test()
             if not auth_response["ok"]:
@@ -46,10 +46,10 @@ class SlackService:
                     "success": False,
                     "error": "認証に失敗しました",
                 }
-            
+
             # Get team info
             team_info = client.team_info()
-            
+
             return {
                 "success": True,
                 "team": {
@@ -71,6 +71,31 @@ class SlackService:
             return {
                 "success": False,
                 "error": f"接続エラー: {str(e)}",
+            }
+
+    @classmethod
+    async def test_connection_with_secret_manager(cls) -> dict[str, Any]:
+        """
+        Test Slack connection using the token from Secret Manager (via settings).
+
+        This is used during setup to verify the backend is properly configured.
+        No user input required.
+
+        Returns:
+            dict with success status, team info, and bot info
+        """
+        try:
+            settings = get_settings()
+            if not settings.slack_bot_token:
+                return {
+                    "success": False,
+                    "error": "Slack Bot Tokenが設定されていません。バックエンドのデプロイ時にSecret Managerで設定してください。",
+                }
+            return await cls.test_connection(settings.slack_bot_token)
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"設定読み込みエラー: {str(e)}",
             }
 
     @classmethod

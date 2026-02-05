@@ -26,6 +26,51 @@ class FirestoreService:
             )
         return cls._db
 
+    # === Users ===
+
+    @classmethod
+    async def get_user(cls, uid: str) -> dict[str, Any] | None:
+        """Get user by Firebase UID."""
+        db = cls.get_client()
+        doc = db.collection("users").document(uid).get()
+        if doc.exists:
+            data = doc.to_dict()
+            data["uid"] = doc.id
+            return data
+        return None
+
+    @classmethod
+    async def create_user(cls, uid: str, data: dict[str, Any]) -> str:
+        """Create a new user document."""
+        db = cls.get_client()
+        data["created_at"] = firestore.SERVER_TIMESTAMP
+        data["updated_at"] = firestore.SERVER_TIMESTAMP
+        db.collection("users").document(uid).set(data)
+        return uid
+
+    @classmethod
+    async def update_user(cls, uid: str, data: dict[str, Any]) -> None:
+        """Update user data."""
+        db = cls.get_client()
+        data["updated_at"] = firestore.SERVER_TIMESTAMP
+        db.collection("users").document(uid).update(data)
+
+    @classmethod
+    async def get_or_create_user(cls, uid: str, email: str, display_name: str | None = None) -> dict[str, Any]:
+        """Get existing user or create new one."""
+        user = await cls.get_user(uid)
+        if user:
+            return user
+
+        user_data = {
+            "email": email,
+            "display_name": display_name or email.split("@")[0],
+            "organization_id": None,
+            "role": "admin",  # First user is admin
+        }
+        await cls.create_user(uid, user_data)
+        return {**user_data, "uid": uid}
+
     # === Organizations ===
 
     @classmethod

@@ -8,26 +8,77 @@ import { getIdToken } from "./firebase";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
-// Default organization ID for demo
-const DEFAULT_ORG_ID = "demo-org";
+// ============================================================
+// User & Organization Management
+// ============================================================
 
 /**
- * Get the current organization ID.
- * In production, this would come from the user's session.
+ * User data stored in Firestore.
+ */
+export interface UserData {
+  uid: string;
+  email: string;
+  displayName?: string;
+  organizationId: string | null;
+  role: string;
+}
+
+// Cache for current user data
+let cachedUserData: UserData | null = null;
+
+/**
+ * Get the current organization ID from cached user data.
+ * Falls back to localStorage for backwards compatibility.
  */
 export function getOrgId(): string {
-  if (typeof window !== "undefined") {
-    return localStorage.getItem("org_id") || DEFAULT_ORG_ID;
+  if (cachedUserData?.organizationId) {
+    return cachedUserData.organizationId;
   }
-  return DEFAULT_ORG_ID;
+  // Fallback to localStorage for backwards compatibility
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("org_id") || "demo-org";
+  }
+  return "demo-org";
 }
 
 /**
- * Set the current organization ID.
+ * Set the organization ID (used during setup).
  */
 export function setOrgId(orgId: string): void {
   if (typeof window !== "undefined") {
     localStorage.setItem("org_id", orgId);
+  }
+  // Also update cached user data if available
+  if (cachedUserData) {
+    cachedUserData.organizationId = orgId;
+  }
+}
+
+/**
+ * Set user data (called after login/user sync).
+ */
+export function setUserData(userData: UserData): void {
+  cachedUserData = userData;
+  // Also store org_id in localStorage for backwards compatibility
+  if (userData.organizationId && typeof window !== "undefined") {
+    localStorage.setItem("org_id", userData.organizationId);
+  }
+}
+
+/**
+ * Get cached user data.
+ */
+export function getUserData(): UserData | null {
+  return cachedUserData;
+}
+
+/**
+ * Clear user data (called on logout).
+ */
+export function clearUserData(): void {
+  cachedUserData = null;
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("org_id");
   }
 }
 
@@ -66,83 +117,90 @@ async function apiRequest<T>(
 // Setup API
 // ============================================================
 
-export interface SlackTestResult {
-  success: boolean;
-  team?: {
-    id: string;
-    name: string;
-    domain: string;
-  };
-  bot?: {
-    id: string;
-    name: string;
-  };
-  error?: string;
-}
-
 export interface SetupStatus {
   organization: {
     id: string;
     name: string;
     status: string;
   };
-  slack: {
-    configured: boolean;
-    team_name?: string;
-  };
-  gemini: {
-    configured: boolean;
-  };
-  vertex: {
-    configured: boolean;
+}
+
+export interface BackendTestResult {
+  success: boolean;
+  services: {
+    firestore: { connected: boolean; error?: string };
+    slack: { connected: boolean; team_name?: string; error?: string };
+    gemini: { connected: boolean; model?: string; error?: string };
   };
 }
 
 export const setupApi = {
   /**
-   * Test Slack connection with a bot token.
+   * Get or create user document after login.
    */
-  testSlackConnection: (botToken: string): Promise<SlackTestResult> => {
-    return apiRequest("/api/setup/slack/test", {
-      method: "POST",
-      body: JSON.stringify({ bot_token: botToken }),
-    });
-  },
-
-  /**
-   * Configure Slack integration.
-   */
-  configureSlack: (data: {
-    botToken: string;
-    signingSecret: string;
-    defaultChannel?: string;
-  }): Promise<{ success: boolean; team: unknown; bot: unknown }> => {
-    return apiRequest("/api/setup/slack/configure", {
+  getOrCreateUser: (data: {
+    uid: string;
+    email: string;
+    displayName?: string;
+  }): Promise<UserData> => {
+    return apiRequest("/api/setup/user", {
       method: "POST",
       body: JSON.stringify({
-        org_id: getOrgId(),
-        bot_token: data.botToken,
-        signing_secret: data.signingSecret,
-        default_channel: data.defaultChannel,
+        uid: data.uid,
+        email: data.email,
+        display_name: data.displayName,
       }),
+    }).then((response) => {
+      const userData: UserData = {
+        uid: response.uid,
+        email: response.email,
+        displayName: response.display_name,
+        organizationId: response.organization_id,
+        role: response.role,
+      };
+      setUserData(userData);
+      return userData;
     });
   },
 
   /**
-   * Initialize organization.
+   * Get user by UID.
+   */
+  getUser: (uid: string): Promise<UserData> => {
+    return apiRequest(`/api/setup/user/${uid}`).then((response) => ({
+      uid: response.uid,
+      email: response.email,
+      displayName: response.display_name,
+      organizationId: response.organization_id,
+      role: response.role,
+    }));
+  },
+
+  /**
+   * Initialize organization (links to user automatically).
    */
   initOrganization: (data: {
-    orgId: string;
+    uid: string;
     name: string;
     adminEmail: string;
   }): Promise<{ success: boolean; org_id: string }> => {
     return apiRequest("/api/setup/init", {
       method: "POST",
       body: JSON.stringify({
-        org_id: data.orgId,
+        uid: data.uid,
         name: data.name,
         admin_email: data.adminEmail,
       }),
+    });
+  },
+
+  /**
+   * Test backend connectivity (Firestore, Slack, Gemini).
+   * Uses Secret Manager credentials - no user input needed.
+   */
+  testBackend: (): Promise<BackendTestResult> => {
+    return apiRequest("/api/setup/test-backend", {
+      method: "POST",
     });
   },
 
@@ -164,7 +222,7 @@ export const setupApi = {
       display_name: string;
     }>;
   }> => {
-    return apiRequest(`/api/setup/slack/users/${getOrgId()}`);
+    return apiRequest(`/api/setup/slack/users`);
   },
 };
 
@@ -409,54 +467,6 @@ export const alertsApi = {
 };
 
 // ============================================================
-// Settings API
-// ============================================================
-
-export interface SlackConfig {
-  configured: boolean;
-  team_id?: string;
-  team_name?: string;
-  bot_id?: string;
-  default_channel?: string;
-}
-
-export interface GeminiConfig {
-  configured: boolean;
-  model?: string;
-  has_api_key: boolean;
-}
-
-export interface VertexConfig {
-  configured: boolean;
-  project_id?: string;
-  region?: string;
-  embedding_model?: string;
-}
-
-export interface OrganizationSettings {
-  id: string;
-  name: string;
-  admin_email: string;
-  status: string;
-  slack_configured: boolean;
-  gemini_configured: boolean;
-  vertex_configured: boolean;
-}
-
-export interface Facility {
-  id: string;
-  name: string;
-  address?: string;
-  phone?: string;
-}
-
-export interface Area {
-  id: string;
-  name: string;
-  code?: string;
-}
-
-// ============================================================
 // Dashboard API
 // ============================================================
 
@@ -501,6 +511,47 @@ export const dashboardApi = {
 // Settings API
 // ============================================================
 
+export interface SlackConfig {
+  configured: boolean;
+  team_id?: string;
+  team_name?: string;
+  bot_id?: string;
+  default_channel?: string;
+}
+
+export interface GeminiConfig {
+  configured: boolean;
+  model?: string;
+  has_api_key: boolean;
+}
+
+export interface VertexConfig {
+  configured: boolean;
+  project_id?: string;
+  region?: string;
+  embedding_model?: string;
+}
+
+export interface OrganizationSettings {
+  id: string;
+  name: string;
+  admin_email: string;
+  status: string;
+}
+
+export interface Facility {
+  id: string;
+  name: string;
+  address?: string;
+  phone?: string;
+}
+
+export interface Area {
+  id: string;
+  name: string;
+  code?: string;
+}
+
 export const settingsApi = {
   /**
    * Get Slack configuration.
@@ -517,46 +568,10 @@ export const settingsApi = {
   },
 
   /**
-   * Configure Gemini.
-   */
-  configureGemini: (data: {
-    apiKey: string;
-    model?: string;
-  }): Promise<{ success: boolean; model: string }> => {
-    return apiRequest("/api/settings/gemini", {
-      method: "POST",
-      body: JSON.stringify({
-        org_id: getOrgId(),
-        api_key: data.apiKey,
-        model: data.model || "gemini-3-flash-preview",
-      }),
-    });
-  },
-
-  /**
    * Get Vertex AI configuration.
    */
   getVertexConfig: (): Promise<VertexConfig> => {
     return apiRequest(`/api/settings/vertex?org_id=${getOrgId()}`);
-  },
-
-  /**
-   * Configure Vertex AI.
-   */
-  configureVertex: (data: {
-    projectId: string;
-    region?: string;
-    embeddingModel?: string;
-  }): Promise<{ success: boolean; project_id: string; region: string }> => {
-    return apiRequest("/api/settings/vertex", {
-      method: "POST",
-      body: JSON.stringify({
-        org_id: getOrgId(),
-        project_id: data.projectId,
-        region: data.region || "asia-northeast1",
-        embedding_model: data.embeddingModel || "text-embedding-005",
-      }),
-    });
   },
 
   /**

@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AdminLayout } from "@/components/layout";
 import { Card, Button, Input, Badge } from "@/components/ui";
-import { Check, ChevronRight, ExternalLink, Loader2, AlertCircle } from "lucide-react";
-import { setupApi, setOrgId } from "@/lib/api";
+import { Check, ChevronRight, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { setupApi, setOrgId, setUserData } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 
 const steps = [
@@ -16,16 +16,11 @@ const steps = [
   },
   {
     id: 2,
-    title: "Slack連携",
-    description: "Slack Appを作成してトークンを入力",
+    title: "接続確認",
+    description: "バックエンドとの接続を確認",
   },
   {
     id: 3,
-    title: "接続テスト",
-    description: "Slackとの接続を確認",
-  },
-  {
-    id: 4,
     title: "完了",
     description: "セットアップ完了",
   },
@@ -42,15 +37,14 @@ export default function SetupPage() {
   const [orgName, setOrgName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
 
-  // Step 2: Slack tokens
-  const [botToken, setBotToken] = useState("");
-  const [signingSecret, setSigningSecret] = useState("");
-
-  // Step 3: Connection test result
-  const [slackTestResult, setSlackTestResult] = useState<{
+  // Step 2: Backend test result
+  const [backendTestResult, setBackendTestResult] = useState<{
     success: boolean;
-    teamName?: string;
-    botName?: string;
+    services: {
+      firestore: { connected: boolean; error?: string };
+      slack: { connected: boolean; team_name?: string; error?: string };
+      gemini: { connected: boolean; model?: string; error?: string };
+    };
   } | null>(null);
 
   // Pre-fill admin email from logged-in user
@@ -70,23 +64,24 @@ export default function SetupPage() {
       setError("管理者メールアドレスを入力してください");
       return;
     }
+    if (!user?.uid) {
+      setError("ログインが必要です");
+      return;
+    }
 
     setLoading(true);
     setError(null);
 
     try {
-      // Generate org ID from name or use a simple ID
-      const orgId = "org-" + Date.now();
-
       const result = await setupApi.initOrganization({
-        orgId,
+        uid: user.uid,
         name: orgName,
         adminEmail,
       });
 
-      if (result.success) {
+      if (result.success && result.org_id) {
         // Save org ID for future API calls
-        setOrgId(result.org_id || orgId);
+        setOrgId(result.org_id);
         setCurrentStep(2);
       } else {
         setError("組織の作成に失敗しました");
@@ -98,77 +93,56 @@ export default function SetupPage() {
     }
   };
 
-  // Step 3: Test Slack connection
-  const handleTestSlackConnection = async () => {
-    if (!botToken.trim()) {
-      setError("Bot Tokenを入力してください");
-      return;
-    }
-
+  // Step 2: Test backend connectivity
+  const handleTestBackend = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const result = await setupApi.testSlackConnection(botToken);
+      const result = await setupApi.testBackend();
+      setBackendTestResult(result);
 
-      if (result.success) {
-        setSlackTestResult({
-          success: true,
-          teamName: result.team?.name,
-          botName: result.bot?.name,
+      if (!result.success) {
+        const errors: string[] = [];
+        if (!result.services.firestore.connected) {
+          errors.push(`Firestore: ${result.services.firestore.error || "接続失敗"}`);
+        }
+        if (!result.services.slack.connected) {
+          errors.push(`Slack: ${result.services.slack.error || "接続失敗"}`);
+        }
+        if (!result.services.gemini.connected) {
+          errors.push(`Gemini: ${result.services.gemini.error || "接続失敗"}`);
+        }
+        setError(errors.join("\n"));
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "接続テストに失敗しました");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Step 2 → 3: Complete setup
+  const handleProceedToComplete = () => {
+    setCurrentStep(3);
+  };
+
+  // Step 3: Complete setup and go to dashboard
+  const handleCompleteSetup = async () => {
+    // Refresh user data to get the updated organizationId
+    if (user?.uid) {
+      try {
+        const userData = await setupApi.getOrCreateUser({
+          uid: user.uid,
+          email: user.email || "",
+          displayName: user.displayName || undefined,
         });
-      } else {
-        setSlackTestResult({ success: false });
-        setError(result.error || "Slack接続テストに失敗しました");
+        setUserData(userData);
+      } catch (err) {
+        console.error("Failed to refresh user data:", err);
       }
-    } catch (err) {
-      setSlackTestResult({ success: false });
-      setError(err instanceof Error ? err.message : "Slack接続テストに失敗しました");
-    } finally {
-      setLoading(false);
     }
-  };
-
-  // Step 3: Configure Slack
-  const handleConfigureSlack = async () => {
-    if (!slackTestResult?.success) {
-      setError("先に接続テストを実行してください");
-      return;
-    }
-    if (!signingSecret.trim()) {
-      setError("Signing Secretを入力してください");
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const result = await setupApi.configureSlack({
-        botToken,
-        signingSecret,
-      });
-
-      if (result.success) {
-        setCurrentStep(4);
-      } else {
-        setError("Slack設定の保存に失敗しました");
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Slack設定の保存に失敗しました");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Step 4: Complete setup and go to dashboard
-  const handleCompleteSetup = () => {
     router.push("/");
-  };
-
-  // Skip Slack setup (optional)
-  const handleSkipSlack = () => {
-    setCurrentStep(4);
   };
 
   return (
@@ -195,7 +169,7 @@ export default function SetupPage() {
               </div>
               {index < steps.length - 1 && (
                 <div
-                  className={`w-24 h-1 mx-2 ${
+                  className={`w-32 h-1 mx-4 ${
                     step.id < currentStep ? "bg-green-500" : "bg-gray-200"
                   }`}
                 />
@@ -207,9 +181,9 @@ export default function SetupPage() {
 
       {/* Error display */}
       {error && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
-          <AlertCircle className="w-5 h-5" />
-          {error}
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2 text-red-700">
+          <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
+          <pre className="whitespace-pre-wrap text-sm">{error}</pre>
         </div>
       )}
 
@@ -237,6 +211,13 @@ export default function SetupPage() {
               required
             />
           </div>
+          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+            <p className="text-sm text-blue-700">
+              <strong>ヒント：</strong> Slack Bot Token、Signing Secret、Gemini API Key
+              はバックエンドデプロイ時にSecret Managerで設定済みです。
+              フロントエンドでの入力は不要です。
+            </p>
+          </div>
           <div className="flex justify-end mt-6">
             <Button onClick={handleInitOrganization} disabled={loading}>
               {loading ? (
@@ -249,113 +230,41 @@ export default function SetupPage() {
         </Card>
       )}
 
-      {/* Step 2: Slack App Creation Guide */}
+      {/* Step 2: Backend Connection Test */}
       {currentStep === 2 && (
         <Card>
-          <h2 className="text-xl font-semibold mb-4">Step 2: Slack Appの作成</h2>
-          <div className="space-y-4 text-gray-600">
-            <p>以下の手順でSlack Appを作成してください：</p>
-            <ol className="list-decimal list-inside space-y-2 ml-4">
-              <li>Slack API管理画面にアクセス</li>
-              <li>「Create New App」をクリック</li>
-              <li>「From scratch」を選択</li>
-              <li>App名を「HomeCare AI」に設定</li>
-              <li>対象のワークスペースを選択</li>
-            </ol>
-            <div className="p-4 bg-blue-50 rounded-lg">
-              <p className="text-sm text-blue-700">
-                <strong>権限設定：</strong>OAuth & Permissions で以下のBot Token Scopesを追加してください：
-                <br />
-                <code className="text-xs">channels:manage, channels:read, channels:history, chat:write, users:read, groups:read, groups:write</code>
-              </p>
-            </div>
-
-            <div className="border-t pt-4 mt-4">
-              <h3 className="font-semibold mb-3">トークン入力</h3>
-              <p className="text-sm text-gray-500 mb-4">
-                Slack Appから取得したトークンを入力してください。
-              </p>
-              <div className="space-y-4">
-                <Input
-                  label="Bot User OAuth Token"
-                  type="password"
-                  value={botToken}
-                  onChange={(e) => setBotToken(e.target.value)}
-                  placeholder="xoxb-..."
-                />
-                <Input
-                  label="Signing Secret"
-                  type="password"
-                  value={signingSecret}
-                  onChange={(e) => setSigningSecret(e.target.value)}
-                  placeholder="Basic Information → App Credentials から取得"
-                />
-              </div>
-            </div>
-          </div>
-          <div className="flex justify-between mt-6">
-            <div className="flex gap-2">
-              <Button variant="secondary" onClick={() => setCurrentStep(1)}>
-                戻る
-              </Button>
-              <a
-                href="https://api.slack.com/apps"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center px-4 py-2 text-blue-600 hover:text-blue-800 border border-blue-200 rounded-lg"
-              >
-                Slack API管理画面
-                <ExternalLink className="w-4 h-4 ml-1" />
-              </a>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="secondary" onClick={handleSkipSlack}>
-                スキップ
-              </Button>
-              <Button onClick={() => setCurrentStep(3)} disabled={!botToken}>
-                次へ
-                <ChevronRight className="w-4 h-4 ml-1" />
-              </Button>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* Step 3: Connection Test */}
-      {currentStep === 3 && (
-        <Card>
-          <h2 className="text-xl font-semibold mb-4">Step 3: 接続テスト</h2>
-          <p className="text-gray-600 mb-4">
-            入力したトークンでSlackに接続できるか確認します。
+          <h2 className="text-xl font-semibold mb-4">Step 2: 接続確認</h2>
+          <p className="text-gray-600 mb-6">
+            バックエンドサービスとの接続を確認します。
+            API KeyやトークンはSecret Managerから自動で読み込まれます。
           </p>
 
-          <div className="p-4 bg-gray-50 rounded-lg mb-4">
-            <div className="flex items-center justify-between">
-              <span>接続状態</span>
-              {slackTestResult === null ? (
-                <Badge variant="default">未テスト</Badge>
-              ) : slackTestResult.success ? (
-                <Badge variant="success">接続成功</Badge>
-              ) : (
-                <Badge variant="danger">接続失敗</Badge>
-              )}
-            </div>
-            {slackTestResult?.success && (
-              <div className="mt-2 text-sm text-gray-600">
-                <p>ワークスペース: {slackTestResult.teamName}</p>
-                <p>Bot名: {slackTestResult.botName}</p>
-              </div>
-            )}
+          {/* Service Status */}
+          <div className="space-y-3 mb-6">
+            <ServiceStatusItem
+              name="Firestore"
+              status={backendTestResult?.services.firestore}
+            />
+            <ServiceStatusItem
+              name="Slack"
+              status={backendTestResult?.services.slack}
+              detail={backendTestResult?.services.slack.team_name}
+            />
+            <ServiceStatusItem
+              name="Gemini API"
+              status={backendTestResult?.services.gemini}
+              detail={backendTestResult?.services.gemini?.model}
+            />
           </div>
 
           <div className="flex justify-between mt-6">
-            <Button variant="secondary" onClick={() => setCurrentStep(2)}>
+            <Button variant="secondary" onClick={() => setCurrentStep(1)}>
               戻る
             </Button>
             <div className="flex gap-2">
               <Button
                 variant="secondary"
-                onClick={handleTestSlackConnection}
+                onClick={handleTestBackend}
                 disabled={loading}
               >
                 {loading ? (
@@ -364,13 +273,10 @@ export default function SetupPage() {
                 接続テスト実行
               </Button>
               <Button
-                onClick={handleConfigureSlack}
-                disabled={!slackTestResult?.success || loading}
+                onClick={handleProceedToComplete}
+                disabled={!backendTestResult?.success}
               >
-                {loading ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : null}
-                設定を保存
+                次へ
                 <ChevronRight className="w-4 h-4 ml-1" />
               </Button>
             </div>
@@ -378,8 +284,8 @@ export default function SetupPage() {
         </Card>
       )}
 
-      {/* Step 4: Complete */}
-      {currentStep === 4 && (
+      {/* Step 3: Complete */}
+      {currentStep === 3 && (
         <Card>
           <div className="text-center py-8">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -398,5 +304,49 @@ export default function SetupPage() {
         </Card>
       )}
     </AdminLayout>
+  );
+}
+
+// Service status display component
+function ServiceStatusItem({
+  name,
+  status,
+  detail,
+}: {
+  name: string;
+  status?: { connected: boolean; error?: string };
+  detail?: string;
+}) {
+  const isConnected = status?.connected ?? false;
+  const isTested = status !== undefined;
+
+  return (
+    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+      <div className="flex items-center gap-3">
+        {isTested ? (
+          isConnected ? (
+            <CheckCircle2 className="w-5 h-5 text-green-500" />
+          ) : (
+            <AlertCircle className="w-5 h-5 text-red-500" />
+          )
+        ) : (
+          <div className="w-5 h-5 rounded-full border-2 border-gray-300" />
+        )}
+        <div>
+          <span className="font-medium">{name}</span>
+          {detail && <p className="text-xs text-gray-500">{detail}</p>}
+          {status?.error && (
+            <p className="text-xs text-red-500">{status.error}</p>
+          )}
+        </div>
+      </div>
+      <Badge
+        variant={
+          !isTested ? "default" : isConnected ? "success" : "danger"
+        }
+      >
+        {!isTested ? "未テスト" : isConnected ? "接続成功" : "接続失敗"}
+      </Badge>
+    </div>
   );
 }

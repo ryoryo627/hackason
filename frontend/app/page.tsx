@@ -11,8 +11,11 @@ import {
   DashboardStats,
   ConnectionStatus,
   Alert,
-  getOrgId,
+  setUserData,
+  setOrgId,
+  UserData,
 } from "@/lib/api";
+import { useAuth } from "@/hooks/useAuth";
 
 function StatCard({
   title,
@@ -75,6 +78,7 @@ function ConnectionItem({
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus | null>(null);
@@ -82,22 +86,51 @@ export default function DashboardPage() {
   const [checkingSetup, setCheckingSetup] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Check if organization exists, redirect to setup if not
+  // Check if user has organization, redirect to setup if not
   useEffect(() => {
-    async function checkOrganizationSetup() {
+    async function checkUserOrganization() {
+      // Wait for auth to complete
+      if (authLoading) return;
+
+      // If not logged in, redirect to login
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+
       try {
-        await setupApi.getStatus();
+        // Get or create user document from Firestore
+        const userData: UserData = await setupApi.getOrCreateUser({
+          uid: user.uid,
+          email: user.email || "",
+          displayName: user.displayName || undefined,
+        });
+
+        // Cache user data for use throughout the app
+        setUserData(userData);
+
+        // Check if user has an organization
+        if (!userData.organizationId) {
+          // No organization - redirect to setup
+          console.log("User has no organization, redirecting to setup...");
+          router.push("/setup");
+          return;
+        }
+
+        // Save org ID for API calls
+        setOrgId(userData.organizationId);
+
         // Organization exists, continue to dashboard
         setCheckingSetup(false);
       } catch (err) {
-        // Organization doesn't exist or error - redirect to setup
-        console.log("Organization not found, redirecting to setup...");
+        console.error("Error checking user organization:", err);
+        // On error, redirect to setup as a fallback
         router.push("/setup");
       }
     }
 
-    checkOrganizationSetup();
-  }, [router]);
+    checkUserOrganization();
+  }, [user, authLoading, router]);
 
   useEffect(() => {
     // Don't fetch dashboard data until setup check is complete
@@ -129,8 +162,8 @@ export default function DashboardPage() {
     fetchDashboardData();
   }, [checkingSetup]);
 
-  // Show loading while checking setup
-  if (checkingSetup) {
+  // Show loading while checking setup or auth
+  if (authLoading || checkingSetup) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">

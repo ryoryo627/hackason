@@ -65,6 +65,13 @@ export function isDemoMode(): boolean {
   return !isFirebaseConfigured;
 }
 
+// Demo user for demo mode (mimics Firebase User structure)
+const DEMO_USER: Partial<User> = {
+  uid: "demo-user-001",
+  email: "demo@homecare.ai",
+  displayName: "デモユーザー",
+} as User;
+
 // Authentication functions
 export async function signIn(
   email: string,
@@ -73,8 +80,8 @@ export async function signIn(
   // Demo mode: accept demo credentials
   if (isDemoMode()) {
     if (email === "demo@homecare.ai" && password === "demo1234") {
-      // Return a mock user-like object
-      return { user: { email } as User, error: null };
+      // Return a mock user-like object with uid
+      return { user: DEMO_USER as User, error: null };
     }
     return { user: null, error: "メールアドレスまたはパスワードが正しくありません" };
   }
@@ -129,7 +136,7 @@ export function onAuthChange(callback: (user: User | null) => void): () => void 
     const demoUser = typeof window !== "undefined" ? localStorage.getItem("demo_user") : null;
     // Use setTimeout to make it async like the real Firebase
     setTimeout(() => {
-      callback(demoUser ? ({ email: demoUser } as User) : null);
+      callback(demoUser ? (DEMO_USER as User) : null);
     }, 0);
     // Return a no-op unsubscribe function
     return () => {};
