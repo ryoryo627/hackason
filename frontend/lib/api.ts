@@ -36,9 +36,10 @@ export function getOrgId(): string {
   }
   // Fallback to localStorage for backwards compatibility
   if (typeof window !== "undefined") {
-    return localStorage.getItem("org_id") || "demo-org";
+    const orgId = localStorage.getItem("org_id");
+    if (orgId) return orgId;
   }
-  return "demo-org";
+  throw new Error("組織IDが設定されていません。セットアップを完了してください。");
 }
 
 /**

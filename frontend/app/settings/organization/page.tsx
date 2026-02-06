@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { AdminLayout } from "@/components/layout";
 import { Card, CardHeader, Button, Input, Badge } from "@/components/ui";
 import { Save, Loader2, CheckCircle, XCircle } from "lucide-react";
-import { settingsApi, OrganizationSettings } from "@/lib/api";
+import { settingsApi } from "@/lib/api";
 
 interface Organization {
   id: string;
@@ -73,7 +73,7 @@ export default function OrganizationSettingsPage() {
       await settingsApi.updateOrganization({ name: orgName });
 
       setOrganization((prev) =>
-        prev ? { ...prev, name: orgName } : { id: "demo-org", name: orgName }
+        prev ? { ...prev, name: orgName } : null
       );
     } catch (err) {
       console.error("Save error:", err);
@@ -116,7 +116,7 @@ export default function OrganizationSettingsPage() {
           />
           <Input
             label="組織ID"
-            value={organization?.id || "demo-org"}
+            value={organization?.id || "未設定"}
             disabled
           />
         </div>

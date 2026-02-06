@@ -2,15 +2,11 @@
 
 /**
  * Authentication hook for Firebase Auth state management.
- * Supports demo mode when Firebase is not configured.
  */
 
 import { useState, useEffect, useCallback } from "react";
 import {
   onAuthChange,
-  isDemoMode,
-  setDemoUser,
-  clearDemoUser,
   signIn as firebaseSignIn,
   signInWithGoogle as firebaseSignInWithGoogle,
   signOut as firebaseSignOut,
@@ -21,7 +17,6 @@ export interface AuthState {
   user: User | null;
   loading: boolean;
   isAuthenticated: boolean;
-  isDemoMode: boolean;
   login: (email: string, password: string) => Promise<{ error: string | null }>;
   loginWithGoogle: () => Promise<{ error: string | null }>;
   logout: () => Promise<void>;
@@ -30,7 +25,6 @@ export interface AuthState {
 export function useAuth(): AuthState {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const demoMode = isDemoMode();
 
   useEffect(() => {
     const unsubscribe = onAuthChange((user) => {
@@ -43,12 +37,8 @@ export function useAuth(): AuthState {
 
   const login = useCallback(async (email: string, password: string) => {
     const result = await firebaseSignIn(email, password);
-    if (result.user && demoMode) {
-      setDemoUser(email);
-      setUser(result.user);
-    }
     return { error: result.error };
-  }, [demoMode]);
+  }, []);
 
   const loginWithGoogle = useCallback(async () => {
     const result = await firebaseSignInWithGoogle();
@@ -59,19 +49,13 @@ export function useAuth(): AuthState {
   }, []);
 
   const logout = useCallback(async () => {
-    if (demoMode) {
-      clearDemoUser();
-      setUser(null);
-    } else {
-      await firebaseSignOut();
-    }
-  }, [demoMode]);
+    await firebaseSignOut();
+  }, []);
 
   return {
     user,
     loading,
     isAuthenticated: !!user,
-    isDemoMode: demoMode,
     login,
     loginWithGoogle,
     logout,
