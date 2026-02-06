@@ -306,6 +306,18 @@ export default function SetupPage() {
                   <li>ワークスペースにインストール</li>
                   <li>Bot User OAuth Token と Signing Secret をコピー</li>
                 </ol>
+                <p className="font-medium mt-3 mb-1">必要な Bot Token Scopes：</p>
+                <ul className="list-disc list-inside space-y-0.5 text-xs">
+                  <li><code className="bg-gray-200 px-1 rounded">channels:manage</code> - チャンネル作成</li>
+                  <li><code className="bg-gray-200 px-1 rounded">channels:read</code> - チャンネル情報取得</li>
+                  <li><code className="bg-gray-200 px-1 rounded">channels:join</code> - Botのチャンネル参加</li>
+                  <li><code className="bg-gray-200 px-1 rounded">chat:write</code> - メッセージ投稿</li>
+                  <li><code className="bg-gray-200 px-1 rounded">groups:write</code> - プライベートチャンネル操作</li>
+                  <li><code className="bg-gray-200 px-1 rounded">groups:read</code> - プライベートチャンネル情報取得</li>
+                  <li><code className="bg-gray-200 px-1 rounded">users:read</code> - メンバー情報取得</li>
+                  <li><code className="bg-gray-200 px-1 rounded">files:read</code> - 添付ファイル読み取り</li>
+                  <li><code className="bg-gray-200 px-1 rounded">app_mentions:read</code> - @bot メンション検知</li>
+                </ul>
               </div>
             </div>
 

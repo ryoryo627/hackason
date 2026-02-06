@@ -44,28 +44,47 @@ class SlackService:
             if not auth_response["ok"]:
                 return {
                     "success": False,
-                    "error": "認証に失敗しました",
+                    "error": "認証に失敗しました。トークンを確認してください。",
                 }
 
-            # Get team info
-            team_info = client.team_info()
-
-            return {
+            # Build result with auth info (always available)
+            result = {
                 "success": True,
                 "team": {
                     "id": auth_response["team_id"],
                     "name": auth_response["team"],
-                    "domain": team_info["team"].get("domain", ""),
+                    "domain": "",  # Will try to get from team_info
                 },
                 "bot": {
                     "id": auth_response["user_id"],
                     "name": auth_response["user"],
                 },
             }
+
+            # Try to get team info (requires team:read scope, optional)
+            try:
+                team_info = client.team_info()
+                result["team"]["domain"] = team_info["team"].get("domain", "")
+            except SlackApiError as e:
+                # team:read scope not available, but connection is still valid
+                if e.response.get("error") == "missing_scope":
+                    result["warning"] = "team:read スコープがないため一部情報を取得できません"
+                # Don't fail the whole test for this
+
+            return result
+
         except SlackApiError as e:
+            error_code = e.response.get("error", "unknown")
+            error_messages = {
+                "invalid_auth": "無効なトークンです。Bot User OAuth Tokenを確認してください。",
+                "token_revoked": "トークンが無効化されています。新しいトークンを発行してください。",
+                "missing_scope": "必要な権限がありません。OAuth & Permissions で以下のスコープを追加してください: chat:write, channels:manage, users:read",
+                "not_authed": "認証されていません。トークンを確認してください。",
+            }
+            error_msg = error_messages.get(error_code, f"Slack APIエラー: {error_code}")
             return {
                 "success": False,
-                "error": f"Slack APIエラー: {e.response['error']}",
+                "error": error_msg,
             }
         except Exception as e:
             return {
