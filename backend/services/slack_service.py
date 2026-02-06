@@ -99,6 +99,26 @@ class SlackService:
             }
 
     @classmethod
+    async def test_connection_with_token(cls, token: str) -> dict[str, Any]:
+        """
+        Test Slack connection with a user-provided token.
+
+        This is an alias for test_connection() for clarity in API calls.
+
+        Args:
+            token: Slack Bot User OAuth Token
+
+        Returns:
+            dict with success status, team info, and bot info
+        """
+        if not token:
+            return {
+                "success": False,
+                "error": "Slack Bot Tokenが指定されていません",
+            }
+        return await cls.test_connection(token)
+
+    @classmethod
     async def get_bot_user_id(cls, token: str | None = None) -> str | None:
         """Get the bot user ID."""
         if cls._bot_user_id and not token:

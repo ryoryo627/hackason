@@ -16,11 +16,16 @@ const steps = [
   },
   {
     id: 2,
-    title: "接続確認",
-    description: "バックエンドとの接続を確認",
+    title: "API設定",
+    description: "SlackとGemini APIの設定",
   },
   {
     id: 3,
+    title: "接続確認",
+    description: "サービスとの接続を確認",
+  },
+  {
+    id: 4,
     title: "完了",
     description: "セットアップ完了",
   },
@@ -37,7 +42,12 @@ export default function SetupPage() {
   const [orgName, setOrgName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
 
-  // Step 2: Backend test result
+  // Step 2: API Keys
+  const [slackBotToken, setSlackBotToken] = useState("");
+  const [slackSigningSecret, setSlackSigningSecret] = useState("");
+  const [geminiApiKey, setGeminiApiKey] = useState("");
+
+  // Step 3: Backend test result
   const [backendTestResult, setBackendTestResult] = useState<{
     success: boolean;
     services: {
@@ -93,13 +103,48 @@ export default function SetupPage() {
     }
   };
 
-  // Step 2: Test backend connectivity
+  // Step 2: Configure API Keys
+  const handleConfigureApiKeys = async () => {
+    if (!slackBotToken.trim()) {
+      setError("Slack Bot Tokenを入力してください");
+      return;
+    }
+    if (!slackSigningSecret.trim()) {
+      setError("Slack Signing Secretを入力してください");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const result = await setupApi.configureApiKeys({
+        orgId: localStorage.getItem("org_id") || "",
+        slackBotToken,
+        slackSigningSecret,
+        geminiApiKey: geminiApiKey || undefined,
+      });
+
+      if (result.success) {
+        setCurrentStep(3);
+      } else {
+        setError(result.error || "API設定の保存に失敗しました");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "API設定の保存に失敗しました");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Step 3: Test backend connectivity
   const handleTestBackend = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const result = await setupApi.testBackend();
+      const orgId = localStorage.getItem("org_id") || "";
+      const result = await setupApi.testBackendWithOrg(orgId);
       setBackendTestResult(result);
 
       if (!result.success) {
@@ -122,9 +167,9 @@ export default function SetupPage() {
     }
   };
 
-  // Step 2 → 3: Complete setup
+  // Step 3 → 4: Complete setup
   const handleProceedToComplete = () => {
-    setCurrentStep(3);
+    setCurrentStep(4);
   };
 
   // Step 3: Complete setup and go to dashboard
@@ -211,13 +256,6 @@ export default function SetupPage() {
               required
             />
           </div>
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-            <p className="text-sm text-blue-700">
-              <strong>ヒント：</strong> Slack Bot Token、Signing Secret、Gemini API Key
-              はバックエンドデプロイ時にSecret Managerで設定済みです。
-              フロントエンドでの入力は不要です。
-            </p>
-          </div>
           <div className="flex justify-end mt-6">
             <Button onClick={handleInitOrganization} disabled={loading}>
               {loading ? (
@@ -230,13 +268,84 @@ export default function SetupPage() {
         </Card>
       )}
 
-      {/* Step 2: Backend Connection Test */}
+      {/* Step 2: API Configuration */}
       {currentStep === 2 && (
         <Card>
-          <h2 className="text-xl font-semibold mb-4">Step 2: 接続確認</h2>
+          <h2 className="text-xl font-semibold mb-4">Step 2: API設定</h2>
           <p className="text-gray-600 mb-6">
-            バックエンドサービスとの接続を確認します。
-            API KeyやトークンはSecret Managerから自動で読み込まれます。
+            SlackとGemini APIの認証情報を入力してください。
+          </p>
+
+          <div className="space-y-6">
+            {/* Slack Settings */}
+            <div className="border-b pb-4">
+              <h3 className="font-medium text-gray-900 mb-3">Slack Bot 設定</h3>
+              <div className="space-y-4">
+                <Input
+                  label="Bot User OAuth Token"
+                  type="password"
+                  value={slackBotToken}
+                  onChange={(e) => setSlackBotToken(e.target.value)}
+                  placeholder="xoxb-..."
+                  required
+                />
+                <Input
+                  label="Signing Secret"
+                  type="password"
+                  value={slackSigningSecret}
+                  onChange={(e) => setSlackSigningSecret(e.target.value)}
+                  placeholder="xxxxxxxxxxxxxxxxxxxxxxxx"
+                  required
+                />
+              </div>
+              <div className="mt-3 p-3 bg-gray-50 rounded text-sm text-gray-600">
+                <p className="font-medium mb-1">Slack App の作成方法：</p>
+                <ol className="list-decimal list-inside space-y-1">
+                  <li><a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Slack API</a> で新しいアプリを作成</li>
+                  <li>OAuth & Permissions で Bot Token Scopes を設定</li>
+                  <li>ワークスペースにインストール</li>
+                  <li>Bot User OAuth Token と Signing Secret をコピー</li>
+                </ol>
+              </div>
+            </div>
+
+            {/* Gemini Settings */}
+            <div>
+              <h3 className="font-medium text-gray-900 mb-3">Gemini API 設定（任意）</h3>
+              <Input
+                label="Gemini API Key"
+                type="password"
+                value={geminiApiKey}
+                onChange={(e) => setGeminiApiKey(e.target.value)}
+                placeholder="AIza..."
+              />
+              <p className="mt-2 text-sm text-gray-500">
+                未入力の場合はシステムデフォルトのAPIキーが使用されます。
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-between mt-6">
+            <Button variant="secondary" onClick={() => setCurrentStep(1)}>
+              戻る
+            </Button>
+            <Button onClick={handleConfigureApiKeys} disabled={loading}>
+              {loading ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : null}
+              次へ
+              <ChevronRight className="w-4 h-4 ml-1" />
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* Step 3: Backend Connection Test */}
+      {currentStep === 3 && (
+        <Card>
+          <h2 className="text-xl font-semibold mb-4">Step 3: 接続確認</h2>
+          <p className="text-gray-600 mb-6">
+            設定したAPI Keyでサービスへの接続を確認します。
           </p>
 
           {/* Service Status */}
@@ -248,7 +357,7 @@ export default function SetupPage() {
             <ServiceStatusItem
               name="Slack"
               status={backendTestResult?.services.slack}
-              detail={backendTestResult?.services.slack.team_name}
+              detail={backendTestResult?.services.slack?.team_name}
             />
             <ServiceStatusItem
               name="Gemini API"
@@ -258,7 +367,7 @@ export default function SetupPage() {
           </div>
 
           <div className="flex justify-between mt-6">
-            <Button variant="secondary" onClick={() => setCurrentStep(1)}>
+            <Button variant="secondary" onClick={() => setCurrentStep(2)}>
               戻る
             </Button>
             <div className="flex gap-2">
@@ -284,8 +393,8 @@ export default function SetupPage() {
         </Card>
       )}
 
-      {/* Step 3: Complete */}
-      {currentStep === 3 && (
+      {/* Step 4: Complete */}
+      {currentStep === 4 && (
         <Card>
           <div className="text-center py-8">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">

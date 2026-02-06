@@ -142,6 +142,62 @@ async def initialize_organization(request: OrganizationInitRequest) -> Organizat
 
 
 # ============================================================
+# API Key Configuration (per-organization)
+# ============================================================
+
+class ConfigureApiKeysRequest(BaseModel):
+    """Request body for configuring API keys."""
+    org_id: str = Field(..., description="Organization ID")
+    slack_bot_token: str = Field(..., description="Slack Bot User OAuth Token")
+    slack_signing_secret: str = Field(..., description="Slack Signing Secret")
+    gemini_api_key: str | None = Field(None, description="Gemini API Key (optional)")
+
+
+class ConfigureApiKeysResponse(BaseModel):
+    """Response for API key configuration."""
+    success: bool
+    error: str | None = None
+
+
+@router.post("/configure", response_model=ConfigureApiKeysResponse)
+async def configure_api_keys(request: ConfigureApiKeysRequest) -> ConfigureApiKeysResponse:
+    """
+    Configure API keys for an organization.
+
+    Stores Slack and Gemini credentials in Firestore for the organization.
+    These credentials are used for organization-specific API calls.
+    """
+    try:
+        # Validate organization exists
+        org = await FirestoreService.get_organization(request.org_id)
+        if not org:
+            return ConfigureApiKeysResponse(
+                success=False,
+                error="組織が見つかりません",
+            )
+
+        # Store API keys in organization document
+        api_config = {
+            "slack_bot_token": request.slack_bot_token,
+            "slack_signing_secret": request.slack_signing_secret,
+        }
+        if request.gemini_api_key:
+            api_config["gemini_api_key"] = request.gemini_api_key
+
+        await FirestoreService.update_organization(request.org_id, {
+            "api_config": api_config,
+        })
+
+        return ConfigureApiKeysResponse(success=True)
+
+    except Exception as e:
+        return ConfigureApiKeysResponse(
+            success=False,
+            error=f"API設定の保存に失敗しました: {str(e)}",
+        )
+
+
+# ============================================================
 # Connection Tests (using Secret Manager credentials)
 # ============================================================
 
@@ -179,14 +235,22 @@ async def test_slack_connection() -> ConnectionTestResponse:
         )
 
 
+class TestBackendRequest(BaseModel):
+    """Request body for backend connectivity test."""
+    org_id: str | None = Field(None, description="Organization ID (optional)")
+
+
 @router.post("/test-backend", response_model=dict)
-async def test_backend_connectivity() -> dict[str, Any]:
+async def test_backend_connectivity(request: TestBackendRequest | None = None) -> dict[str, Any]:
     """
     Test overall backend connectivity.
 
+    If org_id is provided, uses organization-specific credentials.
+    Otherwise, uses Secret Manager credentials.
+
     Checks:
     - Firestore connection
-    - Slack connection (via Secret Manager)
+    - Slack connection
     - Gemini API availability
     """
     results = {
@@ -194,6 +258,18 @@ async def test_backend_connectivity() -> dict[str, Any]:
         "slack": {"connected": False},
         "gemini": {"connected": False},
     }
+
+    org_id = request.org_id if request else None
+    org_config = None
+
+    # Get organization-specific config if org_id provided
+    if org_id:
+        try:
+            org = await FirestoreService.get_organization(org_id)
+            if org:
+                org_config = org.get("api_config", {})
+        except Exception:
+            pass
 
     # Test Firestore
     try:
@@ -205,7 +281,15 @@ async def test_backend_connectivity() -> dict[str, Any]:
 
     # Test Slack
     try:
-        slack_result = await SlackService.test_connection_with_secret_manager()
+        if org_config and org_config.get("slack_bot_token"):
+            # Use organization-specific token
+            slack_result = await SlackService.test_connection_with_token(
+                org_config["slack_bot_token"]
+            )
+        else:
+            # Fall back to Secret Manager
+            slack_result = await SlackService.test_connection_with_secret_manager()
+
         results["slack"]["connected"] = slack_result.get("success", False)
         if slack_result.get("team"):
             results["slack"]["team_name"] = slack_result["team"].get("name")
@@ -214,11 +298,15 @@ async def test_backend_connectivity() -> dict[str, Any]:
     except Exception as e:
         results["slack"]["error"] = str(e)
 
-    # Test Gemini (basic check - just verify API key exists)
+    # Test Gemini
     try:
         from config import get_settings
         settings = get_settings()
-        if settings.gemini_api_key:
+
+        # Use org-specific key if available, otherwise use default
+        gemini_key = (org_config.get("gemini_api_key") if org_config else None) or settings.gemini_api_key
+
+        if gemini_key:
             results["gemini"]["connected"] = True
             results["gemini"]["model"] = settings.gemini_model
         else:

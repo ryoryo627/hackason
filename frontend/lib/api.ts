@@ -230,6 +230,38 @@ export const setupApi = {
   },
 
   /**
+   * Configure API keys for an organization.
+   * Saves Slack and Gemini credentials to Firestore (encrypted).
+   */
+  configureApiKeys: (data: {
+    orgId: string;
+    slackBotToken: string;
+    slackSigningSecret: string;
+    geminiApiKey?: string;
+  }): Promise<{ success: boolean; error?: string }> => {
+    return apiRequest("/api/setup/configure", {
+      method: "POST",
+      body: JSON.stringify({
+        org_id: data.orgId,
+        slack_bot_token: data.slackBotToken,
+        slack_signing_secret: data.slackSigningSecret,
+        gemini_api_key: data.geminiApiKey,
+      }),
+    });
+  },
+
+  /**
+   * Test backend connectivity with organization-specific credentials.
+   * Uses credentials stored for the specified organization.
+   */
+  testBackendWithOrg: (orgId: string): Promise<BackendTestResult> => {
+    return apiRequest("/api/setup/test-backend", {
+      method: "POST",
+      body: JSON.stringify({ org_id: orgId }),
+    });
+  },
+
+  /**
    * Get setup status.
    */
   getStatus: (): Promise<SetupStatus> => {
