@@ -37,10 +37,17 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS configuration
+# CORS configuration - include multiple URL formats for Cloud Run
+cors_origins = [
+    settings.admin_ui_url,
+    "http://localhost:3000",
+    # Cloud Run URL formats
+    "https://homecare-admin-900198832085.asia-northeast1.run.app",
+    "https://homecare-admin-4dtoolhbfq-an.a.run.app",
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.admin_ui_url, "http://localhost:3000"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
