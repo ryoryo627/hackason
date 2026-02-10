@@ -9,7 +9,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-from .base_agent import BaseAgent
+from .base_agent import BaseAgent, DEFAULT_AGENT_PROMPTS
 from services.firestore_service import FirestoreService
 
 # BPS structuring prompt template
@@ -50,9 +50,11 @@ BPS_PROMPT_TEMPLATE = """
   "confidence": 0.0-1.0の確信度
 }}
 
-注意:
-- 報告にない情報はnullまたは空配列とする（推測で埋めない）
-- バイタルのtrendは過去のコンテキストと比較して判断
+【重要ルール（厳守）】:
+- ★最重要★ 上記「報告テキスト」に書かれている情報だけを抽出すること
+- [PATIENT_CONTEXT]の情報は出力に絶対に含めないこと（トレンド判定の参考としてのみ使用）
+- 報告テキストに記載のない項目はnullまたは空配列とすること（推測で埋めない）
+- バイタルのtrendのみ、過去のコンテキストと比較して↑/↓/→を判断してよい
 - confidenceは構造化の確信度（0.0-1.0）
 - 日本語で出力すること
 """
@@ -75,10 +77,11 @@ class IntakeAgent(BaseAgent):
     them in Firestore.
     """
 
-    def __init__(self):
+    def __init__(self, system_prompt: str | None = None, shared_prompt: str | None = None):
         super().__init__(
             thinking_level="low",
-            system_prompt="あなたは報告テキストをBPS形式に構造化するエキスパートです。正確かつ客観的に情報を抽出してください。",
+            system_prompt=system_prompt or DEFAULT_AGENT_PROMPTS["intake"],
+            shared_prompt=shared_prompt,
         )
 
     async def process(
@@ -88,6 +91,7 @@ class IntakeAgent(BaseAgent):
         reporter_name: str = "不明",
         reporter_role: str = "不明",
         slack_message_ts: str | None = None,
+        slack_user_id: str | None = None,
         knowledge_chunks: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """
@@ -152,6 +156,7 @@ class IntakeAgent(BaseAgent):
             "confidence": bps_data.get("confidence", 0.0),
             "source_type": "text",
             "slack_message_ts": slack_message_ts,
+            "slack_user_id": slack_user_id,
         }
 
         # Save to Firestore
@@ -159,6 +164,16 @@ class IntakeAgent(BaseAgent):
 
         # Update patient context
         await self._update_context(patient_id, bps_data)
+
+        # Generate BPS narrative summary (non-fatal)
+        try:
+            narrative = await self._generate_bps_narrative(patient_id, patient, bps_data)
+            if narrative:
+                await FirestoreService.update_patient_context(patient_id, {
+                    "bps_summary": narrative
+                })
+        except Exception as e:
+            print(f"BPS narrative generation failed (non-fatal): {e}")
 
         # Generate confirmation message
         confirmation = self._format_confirmation(
@@ -240,48 +255,73 @@ class IntakeAgent(BaseAgent):
 
         # Symptoms
         symptoms = bio.get("symptoms", [])
-        if symptoms:
-            parts.extend(symptoms[:2])  # Limit to 2
+        if isinstance(symptoms, list):
+            parts.extend(str(s) for s in symptoms[:2] if s)
+        elif symptoms:
+            parts.append(str(symptoms))
 
         # ADL
         adl = bio.get("adl")
         if adl:
-            parts.append(adl)
+            parts.append(str(adl) if not isinstance(adl, str) else adl)
 
-        return ", ".join(parts) if parts else ""
+        return ", ".join(p for p in parts if p) if parts else ""
 
     def _summarize_psycho(self, psycho: dict[str, Any]) -> str:
         """Summarize psychological section."""
         parts = []
-        
+
         mood = psycho.get("mood")
         if mood:
-            parts.append(mood)
+            parts.append(str(mood) if not isinstance(mood, str) else mood)
 
         cognition = psycho.get("cognition")
         if cognition:
-            parts.append(cognition)
+            parts.append(str(cognition) if not isinstance(cognition, str) else cognition)
 
         concerns = psycho.get("concerns", [])
-        if concerns:
-            parts.extend(concerns[:2])
+        if isinstance(concerns, list):
+            parts.extend(str(c) for c in concerns[:2] if c)
+        elif concerns:
+            parts.append(str(concerns))
 
-        return ", ".join(parts) if parts else ""
+        return ", ".join(p for p in parts if p) if parts else ""
 
     def _summarize_social(self, social: dict[str, Any]) -> str:
         """Summarize social section."""
         parts = []
-        
+
+        def _to_str(val) -> str | None:
+            if isinstance(val, str):
+                return val
+            if isinstance(val, list):
+                return ", ".join(str(v) for v in val if v)
+            return str(val) if val else None
+
         family = social.get("family")
         if family:
-            parts.append(family)
+            parts.append(_to_str(family) or "")
 
         services = social.get("services")
         if services:
-            parts.append(services)
+            parts.append(_to_str(services) or "")
 
         concerns = social.get("concerns", [])
-        if concerns:
-            parts.extend(concerns[:2])
+        if isinstance(concerns, list):
+            parts.extend(str(c) for c in concerns[:2] if c)
+        elif concerns:
+            parts.append(str(concerns))
 
-        return ", ".join(parts) if parts else ""
+        return ", ".join(p for p in parts if p) if parts else ""
+
+    async def _generate_bps_narrative(
+        self,
+        patient_id: str,
+        patient: dict[str, Any],
+        bps_data: dict[str, Any],
+    ) -> dict[str, str] | None:
+        """Generate BPS narrative summary via SummaryAgent (lightweight call)."""
+        from .summary_agent import SummaryAgent
+
+        summary_agent = SummaryAgent(thinking_level="low")
+        return await summary_agent.generate_bps_narrative(patient_id, patient, bps_data)

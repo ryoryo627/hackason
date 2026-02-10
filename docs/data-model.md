@@ -18,7 +18,9 @@ knowledge_documents/{doc_id}/
 
 knowledge_agent_bindings/{agent_id}  # エージェント別カテゴリバインド
 
-service_configs/{service_id}         # API設定（Secret Manager参照）
+users/{uid}                          # ユーザー情報（Firebase Auth連携）
+
+service_configs/{service_id}         # API設定（APIキー・トークン直接保存）
 ```
 
 ## 2. organizations コレクション
@@ -30,9 +32,8 @@ service_configs/{service_id}         # API設定（Secret Manager参照）
   slack_workspace_id: string,        // ワークスペースID
   slack_workspace_name: string,      // ワークスペース名
   slack_bot_user_id: string,         // BotのユーザーID
-  slack_token_ref: string,           // Secret Managerリソース参照
-  signing_secret_ref: string,        // Secret Managerリソース参照
   oncall_channel_id: string,         // #oncall-nightのチャンネルID
+  // ※ Slack Bot Token, Signing Secret は service_configs/{org_id}_slack に保存
   setup_completed_at: Timestamp,
   created_at: Timestamp,
   updated_at: Timestamp,
@@ -226,13 +227,16 @@ service_configs/{service_id}         # API設定（Secret Manager参照）
   updated_at: Timestamp,
 }
 
-// knowledge_documents/{doc_id}/chunks/{chunk_id}
+// organizations/{org_id}/knowledge/{doc_id}/chunks/{chunk_id}
 {
   chunk_index: number,               // 0-indexed
   text: string,                      // チャンクテキスト
   token_count: number,
-  embedding_id: string | null,       // Vertex AI Vector SearchのID
-  embedding_status: "pending" | "done" | "error",
+  embedding: number[],               // text-embedding-005 Embedding (768次元 float配列)
+  category: string,                  // 非正規化: 親ドキュメントのカテゴリ
+  source: string,                    // 非正規化: 親ドキュメントのタイトル
+  org_id: string,                    // 非正規化: 組織ID
+  doc_id: string,                    // 非正規化: 親ドキュメントID
   created_at: Timestamp,
 }
 ```
@@ -258,44 +262,62 @@ service_configs/{service_id}         # API設定（Secret Manager参照）
 | alert | guidelines, clinical, medication, custom |
 | summary | bps, guidelines, homecare, palliative |
 
-## 10. service_configs コレクション
+## 10. users コレクション
 
 ```typescript
-// service_configs/{service_id}
-// service_id: "gemini" | "vertex" | "slack" | "firestore" | "gcs" | "stt"
+// users/{uid}  (Firebase Auth UIDをドキュメントIDとして使用)
 {
-  org_id: string,
-  service_id: string,
-  display_name: string,              // "Gemini API"
-  category: "ai" | "integration" | "infrastructure",
-  required: boolean,
-
-  // 設定値（機密でないもの）
-  config: {
-    model?: string,                  // "gemini-3-flash-preview"
-    project_id?: string,
-    region?: string,
-    bucket_name?: string,
-    database_id?: string,
-    language?: string,
-  },
-
-  // Secret Manager参照（機密情報）
-  secrets: {
-    [key: string]: string,           // key: field名, value: Secret Managerリソース参照
-    // 例: { "api_key": "projects/xxx/secrets/gemini-api-key/versions/latest" }
-  },
-
-  // ステータス
-  status: "connected" | "error" | "not_configured",
-  last_checked_at: Timestamp | null,
-  last_error: string | null,
-
+  uid: string,                       // Firebase Auth UID
+  email: string,                     // メールアドレス
+  display_name: string,              // 表示名
+  org_id: string | null,             // 所属組織ID
+  created_at: Timestamp,
   updated_at: Timestamp,
 }
 ```
 
-## 11. インデックス設計
+## 11. service_configs コレクション
+
+APIキー・トークン・設定値をFirestoreに直接保存する。組織単位で管理。
+
+```typescript
+// service_configs/{org_id}_slack
+{
+  bot_token: string,                 // "xoxb-..."
+  signing_secret: string,            // Slack Signing Secret
+  team_id: string,                   // ワークスペースID
+  team_name: string,                 // ワークスペース名
+  bot_user_id: string,               // BotのユーザーID
+  updated_at: Timestamp,
+}
+
+// service_configs/{org_id}_gemini
+{
+  api_key: string,                   // Gemini API Key
+  model: string,                     // "gemini-3-flash-preview"
+  updated_at: Timestamp,
+}
+
+// service_configs/{org_id}_vertex
+{
+  project_id: string,                // GCPプロジェクトID
+  region: string,                    // "asia-northeast1"
+  embedding_model: string,           // "text-embedding-005"
+  updated_at: Timestamp,
+}
+
+// service_configs/{org_id}_agent_prompts
+{
+  shared_system_prompt: string | null,  // 全エージェント共通の追加プロンプト
+  intake_prompt: string | null,         // Intake Agent カスタムプロンプト
+  context_prompt: string | null,        // Context Agent カスタムプロンプト
+  alert_prompt: string | null,          // Alert Agent カスタムプロンプト
+  summary_prompt: string | null,        // Summary Agent カスタムプロンプト
+  updated_at: Timestamp,
+}
+```
+
+## 12. インデックス設計
 
 | コレクション | インデックスフィールド | 用途 |
 |-------------|---------------------|------|
@@ -308,7 +330,7 @@ service_configs/{service_id}         # API設定（Secret Manager参照）
 | `knowledge_documents` | `org_id` + `category` + `status` | カテゴリフィルタ |
 | `knowledge_documents` | `org_id` + `updated_at DESC` | 最近の更新 |
 
-## 12. デモデータ仕様
+## 13. デモデータ仕様
 
 24名以上の模擬患者。以下の分布:
 

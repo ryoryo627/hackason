@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Input, Card } from "@/components/ui";
+import { Button, Input, Card, Alert } from "@/components/ui";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function LoginPage() {
@@ -51,36 +51,34 @@ export default function LoginPage() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen flex items-center justify-center bg-bg-secondary">
+        <div className="w-8 h-8 border-4 border-accent-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-bg-secondary px-4">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-500 rounded-2xl mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-accent-600 rounded-lg mb-4">
             <span className="text-white font-bold text-2xl">HC</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">HomeCare AI</h1>
-          <p className="text-gray-500 mt-1">在宅医療支援システム</p>
+          <h1 className="text-2xl font-bold text-text-primary">HomeCare AI</h1>
+          <p className="text-text-secondary mt-1">在宅医療支援システム</p>
         </div>
 
         {/* Login Card */}
         <Card padding="lg">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-1">ログイン</h2>
-              <p className="text-sm text-gray-500">管理画面にアクセスするにはログインしてください</p>
+              <h2 className="text-xl font-semibold text-text-primary mb-1">ログイン</h2>
+              <p className="text-sm text-text-secondary">管理画面にアクセスするにはログインしてください</p>
             </div>
 
             {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-600">{error}</p>
-              </div>
+              <Alert variant="error">{error}</Alert>
             )}
 
             <Input
@@ -109,10 +107,10 @@ export default function LoginPage() {
 
             <div className="relative my-4">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
+                <div className="w-full border-t border-border-strong" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">または</span>
+                <span className="px-2 bg-white text-text-secondary">または</span>
               </div>
             </div>
 
@@ -146,7 +144,7 @@ export default function LoginPage() {
           </form>
         </Card>
 
-        <p className="text-center text-sm text-gray-500 mt-6">
+        <p className="text-center text-sm text-text-secondary mt-6">
           © 2026 HomeCare AI - GCP AI Hackathon Vol.4
         </p>
       </div>

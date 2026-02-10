@@ -4,7 +4,7 @@ Knowledge Base API endpoints.
 Manages RAG knowledge documents for AI agents.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Query, UploadFile, File, HTTPException
@@ -70,7 +70,7 @@ async def list_documents(
         if status:
             query = query.where("status", "==", status)
 
-        query = query.order_by("updated_at", direction="DESCENDING").limit(limit)
+        query = query.limit(limit)
         docs = query.stream()
 
         documents = []
@@ -79,9 +79,12 @@ async def list_documents(
             data["id"] = doc.id
             documents.append(data)
 
+        # Sort in Python (avoids composite index requirement)
+        documents.sort(key=lambda x: x.get("updated_at", "") or "", reverse=True)
+
         return {"documents": documents, "total": len(documents)}
     except Exception as e:
-        # Return empty list if collection doesn't exist
+        print(f"[ERROR] list_documents failed: {e}")
         return {"documents": [], "total": 0}
 
 
@@ -97,7 +100,7 @@ async def create_document(
         raise HTTPException(status_code=400, detail=f"Invalid category: {category}")
 
     db = FirestoreService.get_client()
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
 
     doc_data = {
         "title": title,
@@ -127,7 +130,7 @@ async def upload_document_file(
     org_id: str = Query(...),
     file: UploadFile = File(...),
 ):
-    """Upload a file for a knowledge document."""
+    """Upload a file for a knowledge document and process with RAG pipeline."""
     # Validate file type
     allowed_types = [
         "application/pdf",
@@ -149,37 +152,58 @@ async def upload_document_file(
         .document(document_id)
     )
 
-    # Update document status
+    # Get document metadata for category/source
+    doc = doc_ref.get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Document not found")
+    doc_data = doc.to_dict()
+
+    # Update document status to processing
     doc_ref.update(
         {
             "status": "processing",
             "file_name": file.filename,
             "file_type": file.content_type,
-            "updated_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
         }
     )
 
-    # In production, this would:
-    # 1. Upload file to GCS
-    # 2. Trigger Cloud Function to process (chunk + embed)
-    # 3. Store chunks in Firestore
-    # 4. Create embeddings with text-embedding-005
-    # 5. Index in Vertex AI Vector Search
+    # Read file bytes
+    file_bytes = await file.read()
 
-    # For demo, simulate processing completion
-    doc_ref.update(
-        {
-            "status": "indexed",
-            "total_chunks": 50,  # Simulated
-            "updated_at": datetime.utcnow().isoformat(),
-        }
+    # Get Gemini API key for embedding generation
+    from agents.base_agent import BaseAgent
+
+    api_key = await BaseAgent.get_gemini_api_key(org_id)
+    if not api_key:
+        doc_ref.update({"status": "error", "error_message": "Gemini APIキーが設定されていません"})
+        raise HTTPException(status_code=400, detail="Gemini APIキーが設定されていません")
+
+    # Process with RAG pipeline
+    from services.rag_service import RAGService
+
+    result = await RAGService.process_document(
+        doc_id=document_id,
+        org_id=org_id,
+        file_bytes=file_bytes,
+        content_type=file.content_type,
+        api_key=api_key,
+        category=doc_data.get("category", ""),
+        source=doc_data.get("source", ""),
     )
+
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=500,
+            detail=result.get("error", "RAG処理に失敗しました"),
+        )
 
     return {
         "success": True,
         "document_id": document_id,
         "file_name": file.filename,
         "status": "indexed",
+        "total_chunks": result.get("total_chunks", 0),
     }
 
 
@@ -206,6 +230,16 @@ async def get_document(
     return {"document": data}
 
 
+@router.get("/documents/{document_id}/chunks")
+async def list_document_chunks(
+    document_id: str,
+    org_id: str = Query(...),
+):
+    """List chunks for a knowledge document."""
+    chunks = await FirestoreService.list_knowledge_chunks(org_id, document_id)
+    return {"chunks": chunks, "total": len(chunks)}
+
+
 @router.put("/documents/{document_id}")
 async def update_document(
     document_id: str,
@@ -223,7 +257,7 @@ async def update_document(
         .document(document_id)
     )
 
-    updates = {"updated_at": datetime.utcnow().isoformat()}
+    updates = {"updated_at": datetime.now(timezone.utc).isoformat()}
     if title:
         updates["title"] = title
     if category:
@@ -259,8 +293,6 @@ async def delete_document(
     # Delete document
     doc_ref.delete()
 
-    # In production, also delete from Vector Search index
-
     return {"success": True}
 
 
@@ -271,19 +303,46 @@ async def search_knowledge(
     category: Optional[str] = Query(None),
     limit: int = Query(5),
 ):
-    """
-    Search knowledge base using semantic search.
+    """Search knowledge base using semantic search with embedding similarity."""
+    # Get Gemini API key for embedding
+    from agents.base_agent import BaseAgent
 
-    In production, this would use Vertex AI Vector Search.
-    For demo, we do simple text matching.
-    """
+    api_key = await BaseAgent.get_gemini_api_key(org_id)
+
+    if api_key:
+        # Semantic search with RAG
+        try:
+            from services.rag_service import RAGService
+
+            categories = [category] if category else None
+            chunks = await RAGService.search(
+                query=query,
+                org_id=org_id,
+                categories=categories,
+                api_key=api_key,
+                limit=limit,
+            )
+
+            results = []
+            for chunk in chunks:
+                results.append({
+                    "document_id": chunk.get("doc_id", ""),
+                    "title": chunk.get("source", ""),
+                    "category": chunk.get("category", ""),
+                    "source": chunk.get("source", ""),
+                    "score": chunk.get("score", 0),
+                    "snippet": chunk.get("text", "")[:200],
+                })
+
+            return {"results": results, "query": query, "total": len(results)}
+        except Exception as e:
+            print(f"[WARN] RAG search failed, falling back to text match: {e}")
+
+    # Fallback: simple text matching
     db = FirestoreService.get_client()
-
-    # Get all documents (in production, use Vector Search)
     docs_query = db.collection("organizations").document(org_id).collection("knowledge")
     if category:
         docs_query = docs_query.where("category", "==", category)
-
     docs_query = docs_query.where("status", "==", "indexed")
     docs = docs_query.stream()
 
@@ -292,7 +351,6 @@ async def search_knowledge(
 
     for doc in docs:
         data = doc.to_dict()
-        # Simple relevance scoring (in production, use embedding similarity)
         score = 0
         if query_lower in data.get("title", "").lower():
             score += 10
@@ -300,18 +358,15 @@ async def search_knowledge(
             score += 5
 
         if score > 0:
-            results.append(
-                {
-                    "document_id": doc.id,
-                    "title": data.get("title"),
-                    "category": data.get("category"),
-                    "source": data.get("source"),
-                    "score": score,
-                    "snippet": f"関連ドキュメント: {data.get('title')}",  # In production, return actual chunk
-                }
-            )
+            results.append({
+                "document_id": doc.id,
+                "title": data.get("title"),
+                "category": data.get("category"),
+                "source": data.get("source"),
+                "score": score,
+                "snippet": f"関連ドキュメント: {data.get('title')}",
+            })
 
-    # Sort by score and limit
     results.sort(key=lambda x: x["score"], reverse=True)
     results = results[:limit]
 
@@ -346,7 +401,7 @@ async def update_agent_bindings(
     doc_ref.update(
         {
             "agent_bindings": agent_ids,
-            "updated_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
         }
     )
 

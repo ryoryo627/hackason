@@ -38,6 +38,10 @@ npm-debug.log*
 htmlcov/
 .pytest_cache/
 
+# Screenshots
+prod-login.png
+shadow-fix-login.png
+
 # Sensitive docs (contains API keys)
 docs/setup-guide.md
 google-cloud-cli-darwin-arm.tar.gz

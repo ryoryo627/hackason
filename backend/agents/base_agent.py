@@ -30,6 +30,26 @@ RAGナレッジベースから取得した知識は [KNOWLEDGE] タグで参照�
 """
 
 
+DEFAULT_AGENT_PROMPTS = {
+    "intake": "あなたは報告テキストをBPS形式に構造化するエキスパートです。正確かつ客観的に情報を抽出してください。",
+    "context": (
+        "あなたは患者に関する質問に答える医療AIアシスタントです。\n"
+        "患者の経過データとナレッジベースを参照し、"
+        "エビデンスに基づいた回答を提供してください。"
+    ),
+    "alert": (
+        "あなたは患者の状態変化を監視する医療AIです。\n"
+        "異変パターンを検知し、適切なアラートを生成してください。\n"
+        "誤検知を避けつつ、重要な変化を見逃さないよう注意してください。"
+    ),
+    "summary": (
+        "あなたは患者のBPS経過サマリーを作成する医療AIです。\n"
+        "報告データを統合し、ケア連携に役立つサマリーを生成してください。\n"
+        "重要な変化や注意点を明確に示してください。"
+    ),
+}
+
+
 class BaseAgent(ABC):
     """Base class for all HomeCare AI agents."""
 
@@ -37,6 +57,8 @@ class BaseAgent(ABC):
         self,
         thinking_level: str = "medium",
         system_prompt: str | None = None,
+        api_key: str | None = None,
+        shared_prompt: str | None = None,
     ):
         """
         Initialize the base agent.
@@ -44,26 +66,57 @@ class BaseAgent(ABC):
         Args:
             thinking_level: Thinking level for Gemini (low, medium, high)
             system_prompt: Custom system prompt (extends shared prompt)
+            api_key: Gemini API key (from Firestore service_configs)
+            shared_prompt: Custom shared prompt (overrides SHARED_SYSTEM_PROMPT)
         """
         self.thinking_level = thinking_level
-        self.system_prompt = (
-            SHARED_SYSTEM_PROMPT + "\n\n" + (system_prompt or "")
-        ).strip()
+        base = shared_prompt if shared_prompt is not None else SHARED_SYSTEM_PROMPT
+        self.system_prompt = (base + "\n\n" + (system_prompt or "")).strip()
+        self._api_key = api_key
         self._client: genai.Client | None = None
         self._thought_signatures: Any = None
 
     @property
     def client(self) -> genai.Client:
-        """Get or create Gemini client."""
+        """Get or create Gemini client using the provided API key."""
         if self._client is None:
-            settings = get_settings()
-            api_key = settings.gemini_api_key
-            if api_key:
-                self._client = genai.Client(api_key=api_key)
+            if self._api_key:
+                self._client = genai.Client(api_key=self._api_key)
             else:
-                # Use default credentials (for Cloud Run)
+                # Use default credentials (for Cloud Run with service account)
                 self._client = genai.Client()
         return self._client
+
+    @classmethod
+    async def get_gemini_api_key(cls, org_id: str) -> str | None:
+        """
+        Get Gemini API key from Firestore service_configs.
+
+        Args:
+            org_id: Organization ID
+
+        Returns:
+            API key string or None if not configured
+        """
+        from services.firestore_service import FirestoreService
+        config = await FirestoreService.get_service_config(org_id, "gemini")
+        if config:
+            return config.get("gemini_api_key")
+        return None
+
+    @classmethod
+    async def get_agent_prompts(cls, org_id: str) -> dict:
+        """
+        Get custom agent prompts from Firestore service_configs.
+
+        Args:
+            org_id: Organization ID
+
+        Returns:
+            Dict with shared_prompt and agent_prompts, or empty dict
+        """
+        from services.firestore_service import FirestoreService
+        return await FirestoreService.get_service_config(org_id, "agent_prompts") or {}
 
     async def generate(
         self,
@@ -104,9 +157,13 @@ class BaseAgent(ABC):
         if json_mode:
             config_dict["response_mime_type"] = "application/json"
 
+        # Pass system prompt as system_instruction
+        if self.system_prompt:
+            config_dict["system_instruction"] = self.system_prompt
+
         config = types.GenerateContentConfig(**config_dict)
 
-        # Build the full prompt with system instruction
+        # Build the full prompt with user content
         full_contents = [
             types.Content(
                 role="user",

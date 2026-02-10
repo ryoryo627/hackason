@@ -18,12 +18,27 @@
 
 **ローカルMacから直接デプロイ（Cloud Shell不使用）**
 
+> **gcloud CLIパス**: `/Users/kyoku/google-cloud-sdk/bin/gcloud`（PATHに入っていないため絶対パスを使用すること）
+
 ```bash
+GCLOUD=/Users/kyoku/google-cloud-sdk/bin/gcloud
+
 # フロントエンド
-cd frontend && gcloud builds submit --config=cloudbuild.yaml
+cd frontend && $GCLOUD builds submit --config=cloudbuild.yaml --project=aihomecare-486506
 
 # バックエンド
-cd backend && gcloud run deploy homecare-bot --source=. --region=asia-northeast1
+cd backend && $GCLOUD run deploy homecare-bot --source=. --region=asia-northeast1 --project=aihomecare-486506
+
+# Cloud Scheduler 朝8時定時スキャン（初回のみ）
+$GCLOUD scheduler jobs create http morning-scan \
+  --location=asia-northeast1 \
+  --schedule="0 8 * * *" \
+  --time-zone="Asia/Tokyo" \
+  --uri="https://homecare-bot-xxx.run.app/cron/morning-scan" \
+  --http-method=POST \
+  --headers="Content-Type=application/json,X-Cron-Secret=YOUR_SECRET" \
+  --body='{"org_id":"demo-org-001"}' \
+  --project=aihomecare-486506
 ```
 
 **GCPプロジェクト情報:**
@@ -56,14 +71,15 @@ Slackを患者ごとの情報集約ハブとし、Google Cloud上のAIエージ�
 - **AIフレームワーク**: ADK (Agent Development Kit)
 - **LLM**: Gemini API (**gemini-3-flash-preview**)
 - **データベース**: Cloud Firestore
-- **ベクトル検索**: Vertex AI Vector Search + text-embedding-005
+- **ベクトル検索**: Firestore + text-embedding-005 + cosine similarity（✅ RAG全パイプライン実装済み）
 - **ファイルストレージ**: Cloud Storage (GCS)
 - **実行環境**: Cloud Run（2サービス）
 - **定時タスク**: Cloud Scheduler
-- **シークレット管理**: Secret Manager
+- **設定管理**: Firestore `service_configs`コレクション（APIキー・トークンをFirestoreに一元管理）
 - **認証**: Firebase Authentication
 - **外部連携**: Slack Bot (Events API + Web API)
-- **フロントエンド**: **Next.js 16** + Tailwind CSS（App Router, Server Components, React 19）
+- **フロントエンド**: **Next.js 16.1.6** + Tailwind CSS 4（App Router, Client Components中心, React 19.2.3）
+- **データフェッチ**: SWR 2.4.0（クライアントサイドデータキャッシュ）
 
 > **ベストプラクティス参照**:
 > - `docs/gemini-3-flash-best-practices.md` — Gemini 3.0 Flash API実装ガイド
@@ -73,10 +89,10 @@ Slackを患者ごとの情報集約ハブとし、Google Cloud上のAIエージ�
 
 | サービス名 | 役割 | 主要エンドポイント |
 |-----------|------|-------------------|
-| `homecare-bot` | Slack Events受信 + ADKエージェント実行 + Cronハンドラ | `/slack/events`, `/cron/morning-scan` |
-| `homecare-admin` | Admin UI配信 + REST API | `/api/*`, `/` (SPA) |
+| `homecare-bot` | Slack Events受信 + ADKエージェント実行 + REST API + Cronハンドラ | `/slack/events`, `/api/*`, `/cron/morning-scan` |
+| `homecare-admin` | Admin UI配信（Next.js SSR） | `/` (SPA) |
 
-## 推奨ディレクトリ構成
+## ディレクトリ構成（実装済み）
 
 ```
 homecare-ai/
@@ -89,121 +105,136 @@ homecare-ai/
 │   ├── api-design.md
 │   ├── agent-design.md
 │   ├── slack-bot-design.md
-│   └── ui-ux-design.md
+│   ├── ui-ux-design.md
+│   ├── gemini-3-flash-best-practices.md
+│   └── nextjs-16-best-practices.md
 │
-├── backend/                     # Python バックエンド（Cloud Run）
+├── backend/                     # Python バックエンド（Cloud Run: homecare-bot）
 │   ├── pyproject.toml
 │   ├── Dockerfile
-│   ├── main.py                  # FastAPI エントリポイント
-│   ├── config.py                # 環境変数・Secret Manager読み込み
+│   ├── main.py                  # FastAPI エントリポイント + Slack Events + Cronハンドラ
+│   ├── config.py                # 環境変数・Firestore設定読み込み
 │   ├── agents/                  # ADK エージェント群
-│   │   ├── root_agent.py
-│   │   ├── intake_agent.py
-│   │   ├── context_agent.py
-│   │   ├── alert_agent.py
-│   │   └── summary_agent.py
+│   │   ├── base_agent.py        # 共通基底クラス（Gemini連携・プロンプト管理）
+│   │   ├── root_agent.py        # オーケストレーター
+│   │   ├── intake_agent.py      # テキスト→BPS構造化
+│   │   ├── context_agent.py     # コンテキスト参照・BPS分析回答
+│   │   ├── alert_agent.py       # 横断分析・異変パターン検知
+│   │   └── summary_agent.py     # BPS経過サマリー生成
 │   ├── slack/                   # Slack Bot処理
-│   │   ├── events.py            # Events APIハンドラ
-│   │   ├── messages.py          # メッセージフォーマッタ
 │   │   └── verify.py            # 署名検証
-│   ├── api/                     # REST APIルーター
-│   │   ├── patients.py
-│   │   ├── setup.py
-│   │   ├── knowledge.py
-│   │   ├── settings.py
-│   │   └── export.py
-│   ├── services/                # ビジネスロジック
-│   │   ├── patient_service.py
-│   │   ├── slack_service.py
-│   │   ├── firestore_service.py
-│   │   └── rag_service.py
-│   ├── models/                  # Pydanticモデル
-│   │   ├── patient.py
-│   │   ├── report.py
-│   │   ├── alert.py
-│   │   └── organization.py
-│   └── cron/                    # 定時タスク
-│       └── morning_scan.py
+│   ├── api/                     # REST APIルーター（6ファイル）
+│   │   ├── dashboard.py         # ダッシュボード統計・フィード
+│   │   ├── patients.py          # 患者CRUD・Slack連携・バルク操作
+│   │   ├── alerts.py            # アラート管理・統計
+│   │   ├── setup.py             # セットアップ・ユーザー・設定保存
+│   │   ├── settings.py          # サービス設定・マスタ管理・エージェント設定
+│   │   └── knowledge.py         # ナレッジベースCRUD・検索
+│   ├── services/                # ビジネスロジック（3ファイル）
+│   │   ├── firestore_service.py # Firestore CRUD操作
+│   │   ├── slack_service.py     # Slack API操作
+│   │   └── rag_service.py       # RAGパイプライン（抽出・チャンク・Embedding・検索）
+│   └── models/                  # Pydanticモデル
+│       ├── patient.py
+│       ├── report.py
+│       ├── alert.py
+│       └── organization.py
 │
-├── frontend/                    # Next.js 16 フロントエンド
+├── frontend/                    # Next.js 16.1.6 フロントエンド（Cloud Run: homecare-admin）
 │   ├── package.json
 │   ├── next.config.ts
-│   ├── proxy.ts                 # 認証ミドルウェア（旧middleware.ts）
+│   ├── cloudbuild.yaml
 │   ├── Dockerfile
-│   ├── app/                     # App Router
+│   ├── app/                     # App Router（14ルート）
 │   │   ├── layout.tsx           # ルートレイアウト
 │   │   ├── page.tsx             # ダッシュボード
+│   │   ├── dashboard-sections.tsx  # ダッシュボード各セクション
 │   │   ├── login/
 │   │   │   └── page.tsx         # ログイン画面
 │   │   ├── setup/
 │   │   │   └── page.tsx         # セットアップウィザード
 │   │   ├── patients/
 │   │   │   ├── page.tsx         # 患者一覧
+│   │   │   ├── BulkAssignMembersModal.tsx  # 一括メンバー割当
+│   │   │   ├── new/
+│   │   │   │   └── page.tsx     # 患者新規登録（フルページ）
+│   │   │   ├── import/
+│   │   │   │   └── page.tsx     # CSVインポート
 │   │   │   └── [id]/
-│   │   │       └── page.tsx     # 患者詳細
+│   │   │       ├── page.tsx     # 患者詳細
+│   │   │       ├── GomonCard.tsx       # 御門カード
+│   │   │       ├── ReferralCard.tsx    # 診療情報提供書
+│   │   │       ├── ExportModal.tsx     # エクスポートモーダル
+│   │   │       ├── DeletePatientModal.tsx  # 患者削除確認
+│   │   │       └── edit/
+│   │   │           └── page.tsx # 患者情報編集（フルページ）
 │   │   ├── alerts/
 │   │   │   └── page.tsx         # アラート一覧
 │   │   ├── knowledge/
 │   │   │   └── page.tsx         # ナレッジベース
-│   │   ├── settings/
-│   │   │   ├── api/page.tsx     # API設定
-│   │   │   ├── master/page.tsx  # マスタ管理
-│   │   │   └── organization/page.tsx  # 組織設定
-│   │   └── actions/             # Server Actions
-│   │       ├── auth.ts
-│   │       ├── patients.ts
-│   │       ├── alerts.ts
-│   │       └── knowledge.ts
+│   │   └── settings/
+│   │       ├── api/page.tsx     # API設定
+│   │       ├── master/page.tsx  # マスタ管理
+│   │       ├── organization/page.tsx  # 組織設定
+│   │       └── agents/
+│   │           └── page.tsx     # AIエージェント設定
 │   ├── components/              # 共通コンポーネント
-│   │   ├── ui/                  # 基本UI（Button, Card, Modal等）
-│   │   ├── layout/              # Sidebar, Header
-│   │   └── features/            # 機能別コンポーネント
-│   ├── lib/                     # ユーティリティ
-│   │   ├── firebase.ts
-│   │   ├── api.ts
-│   │   └── utils.ts
-│   ├── hooks/
-│   └── types/
+│   │   ├── ui/                  # 基本UI（15個）
+│   │   │   ├── Alert.tsx, Badge.tsx, Button.tsx, Card.tsx
+│   │   │   ├── EmptyState.tsx, FormField.tsx, Input.tsx
+│   │   │   ├── Modal.tsx, Select.tsx, Skeleton.tsx
+│   │   │   ├── Tabs.tsx, TagInput.tsx, Textarea.tsx, Toast.tsx
+│   │   │   └── index.ts
+│   │   └── layout/              # レイアウト（7個）
+│   │       ├── AdminLayout.tsx, Header.tsx, Sidebar.tsx
+│   │       ├── SidebarContext.tsx, NotificationDropdown.tsx
+│   │       ├── SearchModal.tsx
+│   │       └── index.ts
+│   ├── hooks/                   # カスタムフック
+│   │   ├── useAuth.ts           # Firebase認証フック
+│   │   └── useApi.ts            # SWRベースAPIフック
+│   └── lib/                     # ユーティリティ
+│       ├── firebase.ts          # Firebase初期化
+│       ├── api.ts               # REST APIクライアント（認証付き）
+│       └── utils.ts             # ユーティリティ関数
 │
-├── scripts/                     # ユーティリティ
-│   ├── seed_demo_data.py        # デモデータ投入スクリプト
-│   └── deploy.sh                # デプロイスクリプト
-│
-└── terraform/                   # GCPインフラ定義（任意）
-    └── main.tf
+└── scripts/                     # ユーティリティ
+    ├── seed_demo_data.py        # デモデータ投入スクリプト
+    ├── post_dummy_reports.py    # ダミー報告投稿スクリプト
+    └── seed_knowledge_data.py   # デモ用ナレッジデータ投入
 ```
 
 ## 開発の優先順位
 
-### Phase 1: 基盤構築（最優先）
-1. Firestoreデータモデル構築 + デモデータ投入（24名患者）
-2. FastAPIバックエンド基本構造 + Cloud Run設定
-3. Firebase Authentication + ログイン画面
-4. Admin UIフレームワーク（サイドバー + ルーティング）
+### Phase 1: 基盤構築 ✅ 完了
+1. ✅ Firestoreデータモデル構築 + デモデータ投入（24名患者）
+2. ✅ FastAPIバックエンド基本構造 + Cloud Run設定
+3. ✅ Firebase Authentication + ログイン画面
+4. ✅ Admin UIフレームワーク（サイドバー + ルーティング）
 
-### Phase 2: 初期セットアップ＋患者登録
-5. 初期セットアップウィザード（Slack App連携）
-6. 患者登録フォーム + バックエンドAPI（Firestore書込→Slack自動チャンネル作成→Bot設定→招待）
-7. API & サービス設定画面（Gemini API Key等の管理）
+### Phase 2: 初期セットアップ＋患者登録 ✅ 完了
+5. ✅ 初期セットアップウィザード（Slack App連携）
+6. ✅ 患者登録フォーム + バックエンドAPI（Firestore書込→Slack自動チャンネル作成→Bot設定→招待）
+7. ✅ API & サービス設定画面（Gemini API Key等の管理）
 
-### Phase 3: Slack Bot＋AIエージェント
-8. Slack Events API受信 + 署名検証
-9. Intake Agent（テキスト→BPS構造化→Firestore保存→確認応答）
-10. Context Agent（@bot質問→コンテキスト参照→BPS分析回答）
-11. Alert Agent（新規報告時の即時異変検知→Slack投稿）
-12. Summary Agent（@botサマリー→BPS経過サマリー生成）
+### Phase 3: Slack Bot＋AIエージェント ✅ 完了
+8. ✅ Slack Events API受信 + 署名検証
+9. ✅ Intake Agent（テキスト→BPS構造化→Firestore保存→確認応答）
+10. ✅ Context Agent（@bot質問→コンテキスト参照→BPS分析回答）
+11. ✅ Alert Agent（新規報告時の即時異変検知→Slack投稿）
+12. ✅ Summary Agent（@botサマリー→BPS経過サマリー生成）
 
-### Phase 4: ダッシュボード＋一覧＋詳細
-13. ダッシュボード（統計・アラート・接続状態・最近の報告）
-14. 患者一覧（検索・フィルタ・ソート・グループ表示）
-15. 患者詳細（BPSサマリー・タイムライン・推奨事項・エクスポート）
-16. アラート一覧・詳細
+### Phase 4: ダッシュボード＋一覧＋詳細 ✅ 完了
+13. ✅ ダッシュボード（統計・アラート・接続状態・最近の報告）
+14. ✅ 患者一覧（検索・フィルタ・ソート・グループ表示）
+15. ✅ 患者詳細（BPSサマリー・タイムライン・推奨事項・エクスポート）
+16. ✅ アラート一覧・詳細
 
-### Phase 5: RAG＋定時タスク＋仕上げ
-17. RAGナレッジベース（ドキュメント管理・チャンク・Embedding・検索テスト・エージェント連携）
-18. Cloud Scheduler + 朝8時定時スキャン → #oncall-night投稿
-19. マスタ管理・組織設定画面
-20. デモデータ整備 + デモ動画用シナリオ確認
+### Phase 5: RAG＋定時タスク＋仕上げ ✅ 完了
+17. ✅ RAGナレッジベース（CRUD + Embedding検索完了 — Firestore + text-embedding-005 + cosine similarity）
+18. ✅ Cloud Scheduler + 朝8時定時スキャン（エンドポイント + cron認証実装済み）
+19. ✅ マスタ管理・組織設定画面
+20. ✅ デモデータ整備 + デモ動画用シナリオ確認
 
 ## 重要な設計判断
 
@@ -222,10 +253,20 @@ homecare-ai/
 ### RAGナレッジベース
 - 8カテゴリ（BPSモデル、臨床推論、診療ガイドライン、在宅医療制度、緩和ケア、老年医学、薬剤管理、院内プロトコル）
 - 各エージェントにどのカテゴリをバインドするかをAdmin UIで設定可能
-- Embedding: text-embedding-005、Vector Store: Vertex AI Vector Search
+- Embedding: text-embedding-005（768次元）、Vector Store: Firestore + cosine similarity（numpy）
 
-### Secret Manager
-全APIキー・トークンはSecret Managerに暗号化保存。ブラウザのlocalStorage/sessionStorageには一切保持しない。Firestoreにはリソース参照IDのみ保持。
+### 設定管理（Firestore service_configs）
+全APIキー・トークンはFirestoreの`service_configs`コレクションに組織単位で保存。ブラウザのlocalStorage/sessionStorageには一切保持しない。
+- `{org_id}_slack` — Bot Token, Signing Secret, ワークスペース情報
+- `{org_id}_gemini` — API Key, モデル名
+- `{org_id}_vertex` — Project ID, Region, Embedding Model
+- `{org_id}_agent_prompts` — 共通/エージェント別カスタムプロンプト
+
+### フロントエンドデータフェッチ
+SWR 2.4.0 + REST APIクライアントパターン。Server Actions不使用。
+- `lib/api.ts` — Firebase ID Token付きfetchラッパー
+- `hooks/useApi.ts` — SWRベースのカスタムフック群
+- `hooks/useAuth.ts` — Firebase認証状態管理
 
 ## デモシナリオ（3分動画）
 
@@ -268,13 +309,13 @@ gcloud run deploy homecare-admin --source=frontend/ --region=asia-northeast1
 ## 環境変数
 
 ```bash
-# backend
-GOOGLE_CLOUD_PROJECT=homecare-ai-prod
-GEMINI_API_KEY=             # or Secret Manager reference
-SLACK_BOT_TOKEN=            # Secret Manager reference
-SLACK_SIGNING_SECRET=       # Secret Manager reference
+# backend（環境変数 — APIキーはFirestore service_configsから取得）
+GOOGLE_CLOUD_PROJECT=aihomecare-486506
 FIRESTORE_DATABASE_ID=(default)
 GCS_BUCKET_NAME=homecare-ai-files
+GCS_KNOWLEDGE_BUCKET=homecare-ai-knowledge
 VERTEX_AI_REGION=asia-northeast1
 ADMIN_UI_URL=https://homecare-admin-xxx.run.app
+# ※ SLACK_BOT_TOKEN, SLACK_SIGNING_SECRET, GEMINI_API_KEY は
+#   Firestore service_configs コレクションから組織単位で取得
 ```

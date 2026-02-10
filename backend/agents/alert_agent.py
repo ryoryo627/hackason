@@ -9,7 +9,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from .base_agent import BaseAgent
+from .base_agent import BaseAgent, DEFAULT_AGENT_PROMPTS
 from services.firestore_service import FirestoreService
 from services.slack_service import SlackService
 
@@ -71,14 +71,11 @@ class AlertAgent(BaseAgent):
     generates alerts when anomalies are detected.
     """
 
-    def __init__(self):
+    def __init__(self, system_prompt: str | None = None, shared_prompt: str | None = None):
         super().__init__(
             thinking_level="high",
-            system_prompt=(
-                "あなたは患者の状態変化を監視する医療AIです。\n"
-                "異変パターンを検知し、適切なアラートを生成してください。\n"
-                "誤検知を避けつつ、重要な変化を見逃さないよう注意してください。"
-            ),
+            system_prompt=system_prompt or DEFAULT_AGENT_PROMPTS["alert"],
+            shared_prompt=shared_prompt,
         )
 
     async def process(
@@ -155,6 +152,7 @@ class AlertAgent(BaseAgent):
                 "evidence": alert.get("evidence", []),
                 "recommendations": alert.get("recommendations", []),
                 "patient_id": patient_id,
+                "org_id": patient.get("org_id"),
             }
             alert_id = await FirestoreService.create_alert(patient_id, alert_data)
             alert_data["id"] = alert_id

@@ -4,24 +4,40 @@ export interface BadgeProps {
   children: React.ReactNode;
   variant?: "default" | "success" | "warning" | "danger" | "info";
   size?: "sm" | "md";
+  dot?: boolean;
 }
 
-export function Badge({ children, variant = "default", size = "sm" }: BadgeProps) {
+export function Badge({ children, variant = "default", size = "sm", dot = false }: BadgeProps) {
   const variants = {
-    default: "bg-gray-100 text-gray-700",
-    success: "bg-green-100 text-green-700",
-    warning: "bg-yellow-100 text-yellow-700",
-    danger: "bg-red-100 text-red-700",
-    info: "bg-blue-100 text-blue-700",
+    default: "bg-bg-secondary text-text-primary",
+    success: "bg-success-subtle text-success",
+    warning: "bg-warning-subtle text-warning",
+    danger: "bg-danger-subtle text-danger",
+    info: "bg-info-subtle text-accent-700",
+  };
+
+  const dotColors = {
+    default: "bg-text-tertiary",
+    success: "bg-success",
+    warning: "bg-warning",
+    danger: "bg-danger",
+    info: "bg-accent-500",
   };
 
   const sizes = {
-    sm: "px-2 py-0.5 text-xs",
-    md: "px-2.5 py-1 text-sm",
+    sm: "px-2.5 py-0.5 text-xs",
+    md: "px-3 py-1 text-sm",
   };
 
   return (
-    <span className={clsx("inline-flex items-center font-medium rounded-full", variants[variant], sizes[size])}>
+    <span className={clsx(
+      "inline-flex items-center gap-1.5 font-medium rounded-full tracking-[0.01em]",
+      variants[variant],
+      sizes[size]
+    )}>
+      {dot && (
+        <span className={clsx("h-2 w-2 rounded-full", dotColors[variant])} aria-hidden="true" />
+      )}
       {children}
     </span>
   );
@@ -36,7 +52,7 @@ export function RiskBadge({ level }: { level: "HIGH" | "MEDIUM" | "LOW" }) {
   };
 
   const { variant, label } = config[level];
-  return <Badge variant={variant}>{label}</Badge>;
+  return <Badge variant={variant} dot>{label}</Badge>;
 }
 
 // Alert severity badge helper
@@ -48,5 +64,5 @@ export function SeverityBadge({ severity }: { severity: "HIGH" | "MEDIUM" | "LOW
   };
 
   const { variant, label } = config[severity];
-  return <Badge variant={variant}>{label}</Badge>;
+  return <Badge variant={variant} dot>{label}</Badge>;
 }

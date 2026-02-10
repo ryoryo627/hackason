@@ -1,51 +1,65 @@
 # UI/UX設計書
 
-## 1. 画面一覧（全14画面）
+## 1. 画面一覧（全14ルート + モーダル）
 
-| # | 画面名 | レイアウト | グループ | 優先度 |
-|---|--------|----------|---------|--------|
-| 1 | ログイン | Full Page | 認証 | MVP |
-| 2 | 初期セットアップウィザード | Full Page | 認証 | MVP |
-| 3 | ダッシュボード | Sidebar + Main | メイン | MVP |
-| 4 | 患者一覧 | Sidebar + Main | 患者管理 | MVP |
-| 5 | 患者登録 | Modal Overlay | 患者管理 | MVP |
-| 6 | 患者詳細 | Sidebar + Main (Drill-down) | 患者管理 | MVP |
-| 7 | 患者情報編集 | Modal Overlay | 患者管理 | MVP |
-| 8 | アラート一覧 | Sidebar + Main | アラート | MVP |
-| 9 | アラート詳細 | Modal Overlay | アラート | MVP |
-| 10 | ナレッジベース | Sidebar + Main | AI設定 | MVP |
-| 11 | ナレッジ追加 | Modal Overlay | AI設定 | MVP |
-| 12 | API & サービス設定 | Sidebar + Main | システム設定 | MVP |
-| 13 | マスタ管理 | Sidebar + Main | システム設定 | 拡張 |
-| 14 | 組織設定 | Sidebar + Main | システム設定 | 拡張 |
+| # | 画面名 | ルート / 表示方式 | グループ | 状態 |
+|---|--------|-----------------|---------|------|
+| 1 | ログイン | `/login` Full Page | 認証 | ✅ |
+| 2 | 初期セットアップウィザード | `/setup` Full Page | 認証 | ✅ |
+| 3 | ダッシュボード | `/` Sidebar + Main | メイン | ✅ |
+| 4 | 患者一覧 | `/patients` Sidebar + Main | 患者管理 | ✅ |
+| 5 | 患者新規登録 | `/patients/new` Full Page | 患者管理 | ✅ |
+| 6 | CSVインポート | `/patients/import` Full Page | 患者管理 | ✅ |
+| 7 | 患者詳細 | `/patients/[id]` Sidebar + Main (Drill-down) | 患者管理 | ✅ |
+| 8 | 患者情報編集 | `/patients/[id]/edit` Full Page | 患者管理 | ✅ |
+| 9 | アラート一覧 | `/alerts` Sidebar + Main | アラート | ✅ |
+| 10 | ナレッジベース | `/knowledge` Sidebar + Main | AI設定 | ✅ |
+| 11 | API & サービス設定 | `/settings/api` Sidebar + Main | システム設定 | ✅ |
+| 12 | マスタ管理 | `/settings/master` Sidebar + Main | システム設定 | ✅ |
+| 13 | 組織設定 | `/settings/organization` Sidebar + Main | システム設定 | ✅ |
+| 14 | AIエージェント設定 | `/settings/agents` Sidebar + Main | AI設定 | ✅ |
+
+**ページ内モーダル:**
+- BulkAssignMembersModal（患者一覧内 — 一括メンバー割当）
+- ExportModal（患者詳細内 — エクスポート）
+- DeletePatientModal（患者詳細内 — 患者削除確認）
+- ナレッジ追加モーダル（ナレッジベース内）
+- アラート詳細（アラート一覧内インライン展開）
 
 ## 2. 画面遷移図
 
 ```
-[ログイン]
-  ├─ 初回 → [セットアップウィザード] → [ダッシュボード]
-  └─ 認証済み → [ダッシュボード]
+[ログイン /login]
+  ├─ 初回 → [セットアップウィザード /setup] → [ダッシュボード /]
+  └─ 認証済み → [ダッシュボード /]
 
-[ダッシュボード]（※サイドバーから全画面にアクセス可能）
-  ├─ アラートカード → [患者詳細]
-  ├─ 接続異常 → [API設定]
+[ダッシュボード /]（※サイドバーから全画面にアクセス可能）
+  ├─ アラートカード → [患者詳細 /patients/[id]]
+  ├─ 接続異常 → [API設定 /settings/api]
   └─ サイドバー → 全画面
 
-[患者一覧]
-  ├─ ＋新規 → [患者登録] (Modal)
-  └─ 行クリック → [患者詳細]
-      └─ 編集 → [患者情報編集] (Modal)
+[患者一覧 /patients]
+  ├─ ＋新規 → [患者登録 /patients/new] (独立ページ)
+  ├─ CSVインポート → [インポート /patients/import] (独立ページ)
+  ├─ 一括メンバー割当 → [BulkAssignMembersModal] (モーダル)
+  └─ 行クリック → [患者詳細 /patients/[id]]
+      ├─ 編集 → [患者編集 /patients/[id]/edit] (独立ページ)
+      ├─ エクスポート → [ExportModal] (モーダル)
+      └─ 削除 → [DeletePatientModal] (モーダル)
 
-[アラート一覧]
-  └─ カード展開 → [アラート詳細] (Modal)
-      └─ 患者を見る → [患者詳細]
+[アラート一覧 /alerts]
+  └─ カード展開 → アラート詳細（インライン展開）
+      └─ 患者を見る → [患者詳細 /patients/[id]]
 
-[ナレッジベース]
-  ├─ ＋追加 → [ナレッジ追加] (Modal)
+[ナレッジベース /knowledge]
+  ├─ ＋追加 → ナレッジ追加（ページ内モーダル）
   └─ 検索テストタブ → インラインテスト
 
-[API & サービス設定]
-  └─ サービス選択 → [サービス個別設定] (Modal)
+[設定]
+  ├─ [API設定 /settings/api]
+  ├─ [マスタ管理 /settings/master]
+  ├─ [組織設定 /settings/organization]
+  └─ [AIエージェント設定 /settings/agents]
 ```
 
 ## 3. レイアウトパターン
@@ -183,7 +197,7 @@
 
 **患者カード表示項目:** 名前、年齢・性別、基礎疾患（チップ）、リスクレベルバッジ、事業所・地区、最終更新日、タグ
 
-### 5.5 患者登録（モーダル）
+### 5.5 患者登録（/patients/new — 独立ページ）
 
 3ステップフォーム。プログレスインジケータ付き。
 
@@ -281,7 +295,7 @@
 | 接続状況 | 統計カード + カテゴリ別サービスカード（AI/ML、外部連携、インフラ）。全接続テストボタン |
 | サービス設定 | 各サービスのフィールド一覧。クリックで設定モーダル |
 | 使用量 | 月間コスト推移チャート + サービス別API calls/tokens/コスト内訳 |
-| セキュリティ | Secret Manager状態、ローテーション管理、セキュリティチェックリスト8項目 |
+| セキュリティ | 設定状態確認、セキュリティチェックリスト |
 
 **管理対象6サービス:**
 
@@ -328,13 +342,48 @@
 | テキスト（薄） | グレー | #7a7a90 |
 | テキスト（ミュート） | ダークグレー | #55556a |
 
-### 6.2 コンポーネント
+### 6.2 UIコンポーネント（`components/ui/` — 15個）
 
-- **Badge**: リスクレベル・ステータス表示。丸角・小サイズ・背景+テキスト色
-- **StatCard**: アイコン + 数値 + ラベル。ダッシュボード統計用
-- **PatientCard**: 患者一覧の行。名前・年齢・疾患チップ・リスクバッジ・更新日
-- **AlertCard**: アラート一覧の行。緊急度バッジ・患者名・パターン・日時
-- **FilterPill**: フィルタのタグ選択ボタン。選択時にカラー変化
-- **Modal**: 背景暗転オーバーレイ。ヘッダー（タイトル+閉じる）+ コンテンツ + フッター（キャンセル+保存）
-- **WizardStep**: ステップインジケータ + コンテンツ + 戻る/次へ
-- **TabBar**: タブ切替。アクティブ時にアクセント色ボーダー下線
+| コンポーネント | 用途 |
+|--------------|------|
+| Alert | 通知バナー（成功・警告・エラー・情報） |
+| Badge | リスクレベル・ステータス表示（HIGH/MEDIUM/LOWカラーコード） |
+| Button | アクションボタン（variant: primary/secondary/danger/ghost） |
+| Card | コンテンツコンテナ（StatCard、PatientCard等の基盤） |
+| EmptyState | ゼロデータ表示（イラスト+メッセージ+アクションボタン） |
+| FormField | フォーム入力ラッパー（ラベル+バリデーションエラー） |
+| Input | テキスト入力 |
+| Modal | 背景暗転オーバーレイ（ヘッダー+コンテンツ+フッター） |
+| Select | ドロップダウン選択 |
+| Skeleton | ローディングプレースホルダー |
+| Tabs | タブ切替（アクティブ時アクセント色ボーダー下線） |
+| TagInput | 複数選択タグ入力（FilterPillパターン） |
+| Textarea | テキストエリア |
+| Toast | トースト通知 |
+
+### 6.3 レイアウトコンポーネント（`components/layout/` — 7個）
+
+| コンポーネント | 用途 |
+|--------------|------|
+| AdminLayout | サイドバー+メインエリアのアプリシェル |
+| Header | ページタイトル+グローバルアクション |
+| Sidebar | ナビゲーションメニュー（セクション分け） |
+| SidebarContext | サイドバー状態管理（React Context） |
+| NotificationDropdown | リアルタイム通知ドロップダウン |
+| SearchModal | グローバル検索モーダル |
+
+### 6.4 データフェッチパターン
+
+SWR 2.4.0ベースのクライアントサイドデータフェッチ。Server Actions不使用。
+
+**カスタムフック:**
+
+| フック | ファイル | 用途 |
+|--------|---------|------|
+| useAuth | `hooks/useAuth.ts` | Firebase認証状態・ユーザー情報・org_id管理 |
+| useApi | `hooks/useApi.ts` | SWRベースのAPI呼び出し（GET/POST/PUT/DELETE） |
+
+**APIクライアント:**
+- `lib/api.ts` — Firebase ID Token自動付与のfetchラッパー
+- `lib/firebase.ts` — Firebase App/Auth初期化
+- `lib/utils.ts` — ユーティリティ関数（日付フォーマット等）

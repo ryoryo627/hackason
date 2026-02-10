@@ -6,41 +6,47 @@
 ┌─────────────────────────────────────────────────────────────────────┐
 │  エンドユーザー層                                                    │
 │  ┌──────────────────┐  ┌──────────────────────────────────────────┐ │
-│  │  Slack Workspace  │  │  Web Admin UI (React on Cloud Run)      │ │
+│  │  Slack Workspace  │  │  Web Admin UI (Next.js on Cloud Run)    │ │
 │  │  - #oncall-night  │  │  - ログイン (Firebase Auth)              │ │
 │  │  - #pt-{患者名}   │  │  - ダッシュボード・患者管理               │ │
 │  │  - Bot対話        │  │  - ナレッジベース・API設定                │ │
 │  └───────┬──────────┘  └────────────────┬─────────────────────────┘ │
-│          │ Events API                    │ REST API                  │
+│          │ Events API                    │ REST API (SWR)           │
 ├──────────┼───────────────────────────────┼──────────────────────────┤
 │  処理層  │                               │                          │
 │  ┌───────▼───────────────────────────────▼────────────────────────┐ │
-│  │  Cloud Run: homecare-bot              Cloud Run: homecare-admin │ │
-│  │  ┌─────────────────────┐              ┌──────────────────────┐ │ │
-│  │  │ ADK Root Agent      │              │ FastAPI REST API     │ │ │
-│  │  │ ├ Intake Agent      │              │ ├ /api/patients      │ │ │
-│  │  │ ├ Context Agent ◄───┼── RAG ───────┤ ├ /api/setup         │ │ │
-│  │  │ ├ Alert Agent       │              │ ├ /api/knowledge     │ │ │
-│  │  │ └ Summary Agent     │              │ ├ /api/settings      │ │ │
-│  │  └─────────┬───────────┘              │ └ /api/export        │ │ │
-│  │            │                          └──────────┬───────────┘ │ │
+│  │  Cloud Run: homecare-bot（FastAPI + ADK）                       │ │
+│  │  ┌─────────────────────┐  ┌──────────────────────────────────┐ │ │
+│  │  │ ADK Root Agent      │  │ FastAPI REST API                 │ │ │
+│  │  │ ├ Intake Agent      │  │ ├ /api/dashboard  (統計・フィード)│ │ │
+│  │  │ ├ Context Agent ◄───┤  │ ├ /api/patients   (CRUD+Slack)  │ │ │
+│  │  │ ├ Alert Agent       │  │ ├ /api/alerts     (管理・統計)   │ │ │
+│  │  │ └ Summary Agent     │  │ ├ /api/setup      (初期設定)     │ │ │
+│  │  │ (BaseAgent共通基底) │  │ ├ /api/settings   (設定・マスタ) │ │ │
+│  │  └─────────┬───────────┘  │ └ /api/knowledge  (RAG CRUD)    │ │ │
+│  │            │              └──────────────────────┬───────────┘ │ │
 │  └────────────┼─────────────────────────────────────┼─────────────┘ │
 │               │                                     │               │
-├───────────────┼─────────────────────────────────────┼───────────────┤
-│  データ層     │                                     │               │
-│  ┌────────────▼─────────────────────────────────────▼─────────────┐ │
-│  │  Cloud Firestore           │  Vertex AI Vector Search          │ │
-│  │  - organizations/          │  - RAGナレッジベースIndex          │ │
-│  │  - patients/               │  - text-embedding-005             │ │
-│  │  - reports/                │                                   │ │
-│  │  - alerts/                 │  Cloud Storage (GCS)              │ │
-│  │  - knowledge_documents/    │  - PDF/画像/音声 生データ          │ │
-│  │                            │  - ナレッジPDFファイル              │ │
-│  │  Secret Manager            │                                   │ │
-│  │  - Slack Token             │  Cloud Scheduler                  │ │
-│  │  - Gemini API Key          │  - 朝8時定時タスク                 │ │
-│  │  - Service Account Key     │                                   │ │
-│  └────────────────────────────┴───────────────────────────────────┘ │
+│  ┌────────────┴─────────────────────────────────────┘               │
+│  │  Cloud Run: homecare-admin（Next.js 16.1.6 SSR）                 │
+│  │  └ Admin UI配信のみ（API呼び出しはhomecare-botへ）               │
+│  └──────────────────────────────────────────────────────────────────│
+│                                                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│  データ層                                                           │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │  Cloud Firestore           │  RAG Knowledge Base              │   │
+│  │  - organizations/          │  - text-embedding-005 (768次元)  │   │
+│  │  - patients/               │  - Firestore + cosine similarity │   │
+│  │  - reports/ (sub)          │  (✅ Embedding検索実装済み)      │   │
+│  │  - alerts/ (sub)           │                                 │   │
+│  │  - knowledge_documents/    │  Cloud Storage (GCS)            │   │
+│  │  - service_configs/        │  - PDF/画像/音声 生データ        │   │
+│  │    (APIキー・トークン一元管理)│  - ナレッジPDFファイル          │   │
+│  │  - users/                  │                                 │   │
+│  │                            │  Cloud Scheduler                │   │
+│  │                            │  - 朝8時定時タスク               │   │
+│  └────────────────────────────┴─────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -51,15 +57,16 @@
 | AIエージェント | ADK | マルチエージェントオーケストレーション | latest |
 | LLM | Gemini API | BPS構造化・臨床推論・サマリー生成 | **gemini-3-flash-preview** |
 | Embedding | text-embedding-005 | RAGナレッジベースのベクトル化 | - |
-| ベクトル検索 | Vertex AI Vector Search | RAG検索 | - |
+| ベクトル検索 | Firestore + cosine similarity | RAG Embedding検索（text-embedding-005, 768次元） | ✅ |
 | データベース | Cloud Firestore | 患者・報告・アラート・設定の永続化 | - |
+| 設定管理 | Firestore service_configs | APIキー・トークンの一元管理 | - |
 | ファイルストレージ | Cloud Storage | PDF/画像/音声/ナレッジファイル | - |
 | アプリ実行 | Cloud Run | Bot + Admin UIのホスティング | gen2 |
 | 定時タスク | Cloud Scheduler | 朝8時スキャン | - |
-| 認証 | Firebase Authentication | Admin UIアクセス制御 | - |
-| シークレット | Secret Manager | APIキー暗号化保存 | - |
-| バックエンド | Python + FastAPI | REST API + Slack Events | 3.12 |
-| フロントエンド | **Next.js + TypeScript + Tailwind** | Admin UI（App Router, Server Components） | **Next.js 16, React 19** |
+| 認証 | Firebase Authentication | Admin UIアクセス制御 | v11.0 |
+| バックエンド | Python + FastAPI | REST API + Slack Events + ADK | 3.12 |
+| フロントエンド | **Next.js + TypeScript + Tailwind CSS** | Admin UI（App Router, Client Components中心） | **Next.js 16.1.6, React 19.2.3, Tailwind 4** |
+| データフェッチ | SWR | クライアントサイドデータキャッシュ | 2.4.0 |
 | 外部連携 | Slack Web API + Events API | 多職種インターフェース | - |
 
 > **技術選定の詳細**:
@@ -70,7 +77,7 @@
 
 ### 3.1 homecare-bot
 
-Slack Events APIの受信とADKエージェントの実行を担当。
+Slack Events APIの受信、ADKエージェントの実行、REST APIの配信を担当。
 
 | 項目 | 設定 |
 |------|------|
@@ -81,7 +88,7 @@ Slack Events APIの受信とADKエージェントの実行を担当。
 | 最大インスタンス | 10 |
 | 最小インスタンス | 0（MVP）/ 1（本番推奨） |
 | リージョン | asia-northeast1 |
-| 認証 | なし（Slack署名検証で保護） |
+| 認証 | Firebase ID Token（REST API） + Slack署名検証（Events API） |
 
 **エンドポイント:**
 
@@ -90,30 +97,38 @@ Slack Events APIの受信とADKエージェントの実行を担当。
 | `/slack/events` | POST | Slack Events API受信 |
 | `/cron/morning-scan` | POST | Cloud Scheduler朝8時トリガー |
 | `/health` | GET | ヘルスチェック |
+| `/api/dashboard/*` | GET | ダッシュボード統計・フィード |
+| `/api/patients/*` | GET/POST/PUT/DELETE | 患者CRUD・Slack連携・バルク操作 |
+| `/api/alerts/*` | GET/POST | アラート管理・統計 |
+| `/api/setup/*` | GET/POST | セットアップ・ユーザー・設定保存 |
+| `/api/settings/*` | GET/POST/PUT/DELETE | サービス設定・マスタ管理・エージェント設定 |
+| `/api/knowledge/*` | GET/POST/PUT/DELETE | ナレッジベースCRUD・検索 |
 
 ### 3.2 homecare-admin
 
-Admin UI（Next.js 16 App Router）の配信を担当。Server ComponentsとServer Actionsを活用。
+Admin UI（Next.js 16.1.6 App Router）の配信を担当。Client Componentsを中心に、SWRでhomecare-botのREST APIからデータ取得。
 
 | 項目 | 設定 |
 |------|------|
 | ランタイム | Node.js 20（Next.js standalone） |
-| フレームワーク | Next.js 16（App Router, Server Components） |
+| フレームワーク | Next.js 16.1.6（App Router, Client Components中心） |
 | メモリ | 1GiB |
 | CPU | 1 |
 | 最大インスタンス | 5 |
 | リージョン | asia-northeast1 |
-| 認証 | Firebase Authentication |
+| 認証 | Firebase Authentication（クライアントサイドルーティング） |
 
 **エンドポイント:**
 - `/` — Admin UI（SSR + クライアントナビゲーション）
-- Server Actionsによるバックエンド連携（homecare-bot APIを呼び出し）
+- SWR + REST APIクライアントでhomecare-botのAPIを呼び出し
 
-**Next.js 16の主要機能:**
-- Cache Components（`"use cache"`ディレクティブ）
-- Partial Pre-Rendering（PPR）
-- Server Actions（フォーム処理）
-- Turbopack（高速ビルド）
+**フロントエンド技術:**
+- Next.js 16.1.6 App Router
+- React 19.2.3 Client Components
+- Tailwind CSS 4
+- SWR 2.4.0（データフェッチ・キャッシュ）
+- Firebase Auth 11.0（認証）
+- Turbopack（高速開発ビルド）
 
 ## 4. セキュリティ設計
 
@@ -127,20 +142,19 @@ Admin UI（Next.js 16 App Router）の配信を担当。Server ComponentsとServ
 | Cloud Scheduler → Bot | OIDC Token検証 |
 | GCPサービス間 | サービスアカウント + IAM |
 
-### 4.2 シークレット管理
+### 4.2 設定管理（Firestore service_configs）
 
-全APIキー・トークンはSecret Managerに保存。
+全APIキー・トークンはFirestoreの`service_configs`コレクションに組織単位で保存。
 
-| シークレット名 | 内容 | アクセス元 |
-|--------------|------|-----------|
-| `slack-bot-token` | Slack Bot User OAuth Token | homecare-bot |
-| `slack-signing-secret` | Slack Signing Secret | homecare-bot |
-| `gemini-api-key` | Gemini API Key | homecare-bot |
-| `vertex-sa-key` | Vertex AIサービスアカウントキー | homecare-bot, homecare-admin |
+| ドキュメントID | 内容 | アクセス元 |
+|---------------|------|-----------|
+| `{org_id}_slack` | Bot Token, Signing Secret, ワークスペース情報 | homecare-bot |
+| `{org_id}_gemini` | Gemini API Key, モデル名 | homecare-bot |
+| `{org_id}_vertex` | Project ID, Region, Embedding Model | homecare-bot |
+| `{org_id}_agent_prompts` | 共通/エージェント別カスタムプロンプト | homecare-bot |
 
-- Firestoreにはシークレットのリソース参照ID（`projects/xxx/secrets/yyy/versions/latest`）のみ保持
 - ブラウザ側（localStorage/sessionStorage）には一切保持しない
-- リクエストごとにSecret Managerから取得、使用後に即破棄
+- 各APIリクエスト処理時にFirestoreから取得して使用
 
 ### 4.3 データアクセス制御
 
@@ -166,14 +180,14 @@ GitHub (main branch)
 | リソース | 名前 | 用途 |
 |---------|------|------|
 | Cloud Run | homecare-bot | Slack Bot + ADKエージェント |
-| Cloud Run | homecare-admin | Admin UI + REST API |
+| Cloud Run | homecare-admin | Admin UI（Next.js SSR） |
 | Firestore | (default) | アプリケーションデータ |
 | GCS Bucket | homecare-ai-files | 生ファイルストレージ |
 | GCS Bucket | homecare-ai-knowledge | ナレッジベースファイル |
 | Vertex AI Vector Search Index | homecare-rag-index | RAGベクトルインデックス |
 | Vertex AI Vector Search Endpoint | homecare-rag-endpoint | RAG検索エンドポイント |
 | Cloud Scheduler Job | morning-scan | 朝8時定時タスク |
-| Secret Manager | slack-bot-token, etc. | シークレット |
+| Firestore service_configs | {org_id}_slack, etc. | APIキー・トークン管理 |
 | Firebase Auth | - | ユーザー認証 |
 
 ## 6. データフロー定義
@@ -183,7 +197,7 @@ GitHub (main branch)
 ```
 事務スタッフ → Admin UI セットアップウィザード
   ├─ Step 1: Slack App作成（手動・ガイド付き）
-  ├─ Step 2: トークン入力 → POST /api/setup/tokens → Secret Manager保存
+  ├─ Step 2: トークン入力 → POST /api/setup/configure → Firestore service_configs保存
   ├─ Step 3: 接続テスト → POST /api/setup/test → Slack auth.test API
   └─ Step 4: 自動初期設定 → POST /api/setup/initialize
       ├→ Firestore organizations/{org_id} 作成

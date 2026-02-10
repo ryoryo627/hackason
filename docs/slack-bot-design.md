@@ -7,17 +7,23 @@
 | `#oncall-night` | 固定名 | 夜間オンコール。朝8時定時レポート | 初期セットアップ時 |
 | `#pt-{患者名}` | `pt-` + 患者名の空白除去 | 患者ごとの情報蓄積・AI対話・アラート | Admin UI患者登録時 |
 
-## 2. Bot権限（OAuth Scopes）
+## 2. Bot権限（OAuth Scopes — 15個）
 
 ```
-channels:manage      # チャンネル作成
+channels:manage      # チャンネル作成・管理
 channels:read        # チャンネル情報取得
 channels:join        # Botのチャンネル参加
+channels:history     # パブリックチャンネルのメッセージ履歴取得
 chat:write           # メッセージ投稿
 groups:write         # プライベートチャンネル操作
 groups:read          # プライベートチャンネル情報取得
+groups:history       # プライベートチャンネルのメッセージ履歴取得
+im:history           # ダイレクトメッセージ履歴取得
+mpim:history         # グループDM履歴取得
 users:read           # メンバー情報取得
+users:read.email     # メンバーメールアドレス取得
 files:read           # 添付ファイル読み取り
+reactions:write      # リアクション追加（報告確認用）
 app_mentions:read    # @bot メンション検知
 ```
 
@@ -266,11 +272,17 @@ Admin UIのセットアップウィザードでコピーして使用するマニ
         "channels:manage",
         "channels:read",
         "channels:join",
+        "channels:history",
         "chat:write",
         "groups:write",
         "groups:read",
+        "groups:history",
+        "im:history",
+        "mpim:history",
         "users:read",
+        "users:read.email",
         "files:read",
+        "reactions:write",
         "app_mentions:read"
       ]
     }

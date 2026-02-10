@@ -85,8 +85,9 @@ export function clearUserData(): void {
 
 /**
  * API request helper with authentication.
+ * Exported for SWR fetcher integration.
  */
-async function apiRequest<T>(
+export async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
@@ -280,7 +281,7 @@ export const setupApi = {
       display_name: string;
     }>;
   }> => {
-    return apiRequest(`/api/setup/slack/users`);
+    return apiRequest(`/api/setup/slack/users?org_id=${getOrgId()}`);
   },
 };
 
@@ -308,6 +309,25 @@ export interface Patient {
   org_id: string;
   created_at?: string;
   updated_at?: string;
+  // 在宅5つの呪文
+  medical_procedures?: string[];
+  residence_type?: string;
+  insurance_type?: string;
+  adl_description?: string;
+  special_disease_flag?: string;
+  // 紹介元・経緯
+  referral_source?: {
+    institution_name?: string;
+    doctor_name?: string;
+    department?: string;
+    referral_date?: string;
+  };
+  clinical_background?: string;
+  key_person?: {
+    name?: string;
+    relationship?: string;
+    phone?: string;
+  };
 }
 
 export interface PatientDetail extends Patient {
@@ -327,6 +347,9 @@ export interface Report {
     psycho?: string[];
     social?: string[];
   };
+  acknowledged?: boolean;
+  acknowledged_by?: string;
+  acknowledged_at?: string;
 }
 
 export interface Alert {
@@ -346,6 +369,14 @@ export interface BPSContext {
   bio: Record<string, unknown>;
   psycho: Record<string, unknown>;
   social: Record<string, unknown>;
+  bps_summary?: {
+    bio_narrative?: string;
+    psycho_narrative?: string;
+    social_narrative?: string;
+    bio_trend?: string;
+    psycho_trend?: string;
+    social_trend?: string;
+  };
   last_updated?: string;
 }
 
@@ -362,6 +393,25 @@ export interface CreatePatientData {
   care_level?: string;
   team_member_ids?: string[];
   create_slack_channel?: boolean;
+  // 在宅5つの呪文
+  medical_procedures?: string[];
+  residence_type?: string;
+  insurance_type?: string;
+  adl_description?: string;
+  special_disease_flag?: string;
+  // 紹介元・経緯
+  referral_source?: {
+    institution_name?: string;
+    doctor_name?: string;
+    department?: string;
+    referral_date?: string;
+  };
+  clinical_background?: string;
+  key_person?: {
+    name?: string;
+    relationship?: string;
+    phone?: string;
+  };
 }
 
 export const patientsApi = {
@@ -429,11 +479,106 @@ export const patientsApi = {
    */
   update: (
     patientId: string,
-    data: Partial<CreatePatientData>
-  ): Promise<{ success: boolean; updated_fields: string[] }> => {
+    data: Partial<CreatePatientData> & { status?: string; risk_level?: string }
+  ): Promise<{
+    success: boolean;
+    updated_fields: string[];
+    slack_sync?: {
+      channel_renamed?: boolean;
+      rename_error?: string;
+      anchor_updated?: boolean;
+      anchor_error?: string;
+    } | null;
+  }> => {
     return apiRequest(`/api/patients/${patientId}`, {
       method: "PUT",
       body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Bulk create patients from CSV import.
+   */
+  bulkCreate: (
+    data: {
+      patients: Omit<CreatePatientData, "team_member_ids" | "create_slack_channel">[];
+      create_slack_channels?: boolean;
+    }
+  ): Promise<{
+    success: boolean;
+    total: number;
+    created: number;
+    patient_ids: string[];
+    errors: { index: number; name: string; error: string }[];
+    slack_status: string;
+  }> => {
+    return apiRequest("/api/patients/bulk", {
+      method: "POST",
+      body: JSON.stringify({
+        org_id: getOrgId(),
+        patients: data.patients,
+        create_slack_channels: data.create_slack_channels ?? false,
+      }),
+    });
+  },
+
+  /**
+   * Bulk assign team members to patients' Slack channels.
+   */
+  bulkAssignMembers: (data: {
+    patient_ids: string[];
+    user_ids: string[];
+  }): Promise<{
+    success: boolean;
+    task_id: string;
+    total_patients: number;
+    status: string;
+  }> => {
+    return apiRequest("/api/patients/bulk-assign-members", {
+      method: "POST",
+      body: JSON.stringify({
+        org_id: getOrgId(),
+        patient_ids: data.patient_ids,
+        user_ids: data.user_ids,
+      }),
+    });
+  },
+
+  /**
+   * Get progress of a bulk member assignment task.
+   */
+  getBulkAssignProgress: (taskId: string): Promise<{
+    task_id: string;
+    status: string;
+    total: number;
+    completed: number;
+    results: Array<{
+      patient_id: string;
+      patient_name: string;
+      success: boolean;
+      invited?: number;
+      note?: string;
+      error?: string;
+    }>;
+  }> => {
+    return apiRequest(`/api/patients/bulk-assign-members/${taskId}`);
+  },
+
+  /**
+   * Delete (archive) a patient.
+   */
+  delete: (
+    patientId: string
+  ): Promise<{
+    success: boolean;
+    patient_id: string;
+    slack?: {
+      channel_archived?: boolean;
+      error?: string;
+    } | null;
+  }> => {
+    return apiRequest(`/api/patients/${patientId}`, {
+      method: "DELETE",
     });
   },
 
@@ -442,10 +587,14 @@ export const patientsApi = {
    */
   getReports: (
     patientId: string,
-    limit?: number
+    params?: { limit?: number; acknowledged?: boolean }
   ): Promise<{ patient_id: string; reports: Report[]; total: number }> => {
-    const params = limit ? `?limit=${limit}` : "";
-    return apiRequest(`/api/patients/${patientId}/reports${params}`);
+    const searchParams = new URLSearchParams();
+    if (params?.limit) searchParams.set("limit", params.limit.toString());
+    if (params?.acknowledged !== undefined)
+      searchParams.set("acknowledged", params.acknowledged.toString());
+    const qs = searchParams.toString();
+    return apiRequest(`/api/patients/${patientId}/reports${qs ? `?${qs}` : ""}`);
   },
 
   /**
@@ -469,6 +618,20 @@ export const patientsApi = {
   ): Promise<{ success: boolean }> => {
     return apiRequest(
       `/api/patients/${patientId}/alerts/${alertId}/acknowledge?acknowledged_by=${userId}`,
+      { method: "POST" }
+    );
+  },
+
+  /**
+   * Acknowledge a report (mark as read).
+   */
+  acknowledgeReport: (
+    patientId: string,
+    reportId: string,
+    userId: string
+  ): Promise<{ success: boolean }> => {
+    return apiRequest(
+      `/api/patients/${patientId}/reports/${reportId}/acknowledge?acknowledged_by=${userId}`,
       { method: "POST" }
     );
   },
@@ -542,6 +705,40 @@ export interface ConnectionStatus {
   firestore: { connected: boolean };
 }
 
+export interface NightPatientEvent {
+  patient_id: string;
+  patient_name: string;
+  risk_level: string;
+  reports_count: number;
+  alerts: {
+    severity: string;
+    title: string;
+    message: string;
+    created_at: string;
+  }[];
+  latest_report: {
+    timestamp: string;
+    reporter_name: string;
+    reporter_role: string;
+    raw_text: string;
+  } | null;
+}
+
+export interface NightSummary {
+  window: {
+    since: string;
+    until: string;
+    hours: number;
+  };
+  summary: {
+    total_patients: number;
+    patients_with_events: number;
+    total_reports: number;
+    alerts_by_severity: { high: number; medium: number; low: number };
+  };
+  patients: NightPatientEvent[];
+}
+
 export const dashboardApi = {
   /**
    * Get dashboard statistics.
@@ -575,6 +772,8 @@ export interface SlackConfig {
   team_name?: string;
   bot_id?: string;
   default_channel?: string;
+  oncall_channel_name?: string;
+  morning_scan_time?: string;
 }
 
 export interface GeminiConfig {
@@ -610,6 +809,12 @@ export interface Area {
   code?: string;
 }
 
+export interface AgentPromptConfig {
+  shared_prompt: string;
+  agent_prompts: Record<string, string>;
+  is_customized: boolean;
+}
+
 export const settingsApi = {
   /**
    * Get Slack configuration.
@@ -623,6 +828,23 @@ export const settingsApi = {
    */
   getGeminiConfig: (): Promise<GeminiConfig> => {
     return apiRequest(`/api/settings/gemini?org_id=${getOrgId()}`);
+  },
+
+  /**
+   * Configure Gemini API Key.
+   */
+  configureGemini: (data: {
+    apiKey: string;
+    model?: string;
+  }): Promise<{ success: boolean; model: string }> => {
+    return apiRequest("/api/settings/gemini", {
+      method: "POST",
+      body: JSON.stringify({
+        org_id: getOrgId(),
+        api_key: data.apiKey,
+        model: data.model || "gemini-3-flash-preview",
+      }),
+    });
   },
 
   /**
@@ -723,6 +945,85 @@ export const settingsApi = {
       { method: "DELETE" }
     );
   },
+
+  /**
+   * Create the #oncall-night Slack channel.
+   */
+  createOncallChannel: (): Promise<{
+    success: boolean;
+    channel_id: string;
+    channel_name: string;
+  }> => {
+    return apiRequest("/api/settings/slack/oncall-channel", {
+      method: "POST",
+      body: JSON.stringify({ org_id: getOrgId() }),
+    });
+  },
+
+  /**
+   * Update morning scan report delivery time.
+   */
+  updateMorningScanTime: (
+    time: string
+  ): Promise<{ success: boolean; morning_scan_time: string }> => {
+    return apiRequest("/api/settings/slack/morning-scan-time", {
+      method: "PUT",
+      body: JSON.stringify({ org_id: getOrgId(), time }),
+    });
+  },
+
+  /**
+   * Get alert scan schedule times.
+   */
+  getAlertSchedule: (): Promise<{ alert_scan_times: string[] }> => {
+    return apiRequest(`/api/settings/alert-schedule?org_id=${getOrgId()}`);
+  },
+
+  /**
+   * Update alert scan schedule times.
+   */
+  updateAlertSchedule: (
+    times: string[]
+  ): Promise<{ success: boolean; alert_scan_times: string[] }> => {
+    return apiRequest("/api/settings/alert-schedule", {
+      method: "PUT",
+      body: JSON.stringify({ org_id: getOrgId(), alert_scan_times: times }),
+    });
+  },
+
+  /**
+   * Get agent prompt configuration.
+   */
+  getAgentPrompts: (): Promise<AgentPromptConfig> => {
+    return apiRequest(`/api/settings/agents?org_id=${getOrgId()}`);
+  },
+
+  /**
+   * Update agent prompt configuration.
+   */
+  updateAgentPrompts: (data: {
+    shared_prompt?: string;
+    agent_prompts?: Record<string, string>;
+  }): Promise<{ success: boolean }> => {
+    return apiRequest("/api/settings/agents", {
+      method: "PUT",
+      body: JSON.stringify({
+        org_id: getOrgId(),
+        ...data,
+      }),
+    });
+  },
+
+  /**
+   * Reset agent prompt to default.
+   */
+  resetAgentPrompt: (agentId?: string): Promise<{ success: boolean }> => {
+    const params = new URLSearchParams({ org_id: getOrgId() });
+    if (agentId) params.append("agent_id", agentId);
+    return apiRequest(`/api/settings/agents?${params}`, {
+      method: "DELETE",
+    });
+  },
 };
 
 // ============================================================
@@ -804,10 +1105,14 @@ export const knowledgeApi = {
     const formData = new FormData();
     formData.append("file", file);
 
+    const token = await getIdToken();
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/knowledge/documents/${documentId}/upload?org_id=${getOrgId()}`,
+      `${API_BASE_URL}/api/knowledge/documents/${documentId}/upload?org_id=${getOrgId()}`,
       {
         method: "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: formData,
       }
     );
@@ -893,5 +1198,26 @@ export const knowledgeApi = {
     return apiRequest(`/api/knowledge/documents/${documentId}/bindings?${params}`, {
       method: "PUT",
     });
+  },
+
+  /**
+   * Get chunks for a knowledge document.
+   */
+  getChunks: (
+    documentId: string
+  ): Promise<{
+    chunks: Array<{
+      id: string;
+      chunk_index: number;
+      text: string;
+      token_count: number;
+      category?: string;
+      source?: string;
+    }>;
+    total: number;
+  }> => {
+    return apiRequest(
+      `/api/knowledge/documents/${documentId}/chunks?org_id=${getOrgId()}`
+    );
   },
 };

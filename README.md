@@ -54,8 +54,8 @@ Admin UI ←→ Cloud Run (homecare-admin) ←→ Firestore ←→ Vertex AI Vec
 | 実行環境 | Cloud Run |
 | 定時タスク | Cloud Scheduler |
 | 認証 | Firebase Authentication |
-| シークレット管理 | Secret Manager |
-| フロントエンド | **Next.js 16** + Tailwind CSS |
+| 設定管理 | Firestore service_configs |
+| フロントエンド | **Next.js 16.1.6** + Tailwind CSS 4 + SWR 2.4 |
 | エンドユーザーIF | Slack (Bot + Events API) |
 
 ## セットアップ

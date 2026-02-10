@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AdminLayout } from "@/components/layout";
-import { Card, CardHeader, Button, Input } from "@/components/ui";
+import { Card, CardHeader, Button, Input, Modal } from "@/components/ui";
 import { Plus, Trash2, Building2, MapPin, Loader2, X } from "lucide-react";
 import { settingsApi, Facility, Area } from "@/lib/api";
 
@@ -139,7 +139,7 @@ export default function MasterSettingsPage() {
     return (
       <AdminLayout title="マスタ管理">
         <div className="flex justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+          <Loader2 className="w-8 h-8 animate-spin text-text-tertiary" />
         </div>
       </AdminLayout>
     );
@@ -147,16 +147,16 @@ export default function MasterSettingsPage() {
 
   return (
     <AdminLayout title="マスタ管理">
-      <p className="text-gray-600 mb-6">
+      <p className="text-text-secondary mb-6">
         事業所・地区などのマスタデータを管理します。
       </p>
 
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+        <div className="mb-6 p-4 bg-danger-light border border-danger/20 rounded-lg text-danger">
           {error}
           <button
             onClick={() => setError(null)}
-            className="ml-2 text-red-500 hover:text-red-700"
+            className="ml-2 text-danger hover:text-danger"
           >
             <X className="w-4 h-4 inline" />
           </button>
@@ -177,7 +177,7 @@ export default function MasterSettingsPage() {
             }
           />
           {facilities.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">
+            <p className="text-text-secondary text-center py-4">
               事業所が登録されていません
             </p>
           ) : (
@@ -185,14 +185,14 @@ export default function MasterSettingsPage() {
               {facilities.map((facility) => (
                 <div
                   key={facility.id}
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                  className="flex items-center justify-between p-3 bg-bg-secondary rounded-lg"
                 >
                   <div className="flex items-center gap-3">
-                    <Building2 className="w-5 h-5 text-gray-400" />
+                    <Building2 className="w-5 h-5 text-text-tertiary" />
                     <div>
-                      <p className="font-medium text-gray-900">{facility.name}</p>
+                      <p className="font-medium text-text-primary">{facility.name}</p>
                       {facility.address && (
-                        <p className="text-sm text-gray-500">{facility.address}</p>
+                        <p className="text-sm text-text-secondary">{facility.address}</p>
                       )}
                     </div>
                   </div>
@@ -205,7 +205,7 @@ export default function MasterSettingsPage() {
                     {deletingFacility === facility.id ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
-                      <Trash2 className="w-4 h-4 text-red-500" />
+                      <Trash2 className="w-4 h-4 text-danger" />
                     )}
                   </Button>
                 </div>
@@ -227,7 +227,7 @@ export default function MasterSettingsPage() {
             }
           />
           {areas.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">
+            <p className="text-text-secondary text-center py-4">
               地区が登録されていません
             </p>
           ) : (
@@ -235,11 +235,11 @@ export default function MasterSettingsPage() {
               {areas.map((area) => (
                 <div
                   key={area.id}
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                  className="flex items-center justify-between p-3 bg-bg-secondary rounded-lg"
                 >
                   <div className="flex items-center gap-3">
-                    <MapPin className="w-5 h-5 text-gray-400" />
-                    <p className="font-medium text-gray-900">{area.name}</p>
+                    <MapPin className="w-5 h-5 text-text-tertiary" />
+                    <p className="font-medium text-text-primary">{area.name}</p>
                   </div>
                   <Button
                     variant="ghost"
@@ -250,7 +250,7 @@ export default function MasterSettingsPage() {
                     {deletingArea === area.id ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
-                      <Trash2 className="w-4 h-4 text-red-500" />
+                      <Trash2 className="w-4 h-4 text-danger" />
                     )}
                   </Button>
                 </div>
@@ -261,103 +261,85 @@ export default function MasterSettingsPage() {
       </div>
 
       {/* Add Facility Modal */}
-      {showAddFacility && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <Card className="w-full max-w-md mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">事業所を追加</h2>
-              <button
-                onClick={() => setShowAddFacility(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <Input
-                label="事業所名 *"
-                value={newFacility.name}
-                onChange={(e) =>
-                  setNewFacility({ ...newFacility, name: e.target.value })
-                }
-                placeholder="例：本院"
-              />
-              <Input
-                label="住所"
-                value={newFacility.address}
-                onChange={(e) =>
-                  setNewFacility({ ...newFacility, address: e.target.value })
-                }
-                placeholder="例：東京都渋谷区代々木1-1-1"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 mt-6">
-              <Button
-                variant="secondary"
-                onClick={() => setShowAddFacility(false)}
-              >
-                キャンセル
-              </Button>
-              <Button
-                onClick={handleAddFacility}
-                disabled={addingFacility || !newFacility.name}
-              >
-                {addingFacility ? (
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                ) : (
-                  <Plus className="w-4 h-4 mr-2" />
-                )}
-                追加
-              </Button>
-            </div>
-          </Card>
+      <Modal
+        isOpen={showAddFacility}
+        onClose={() => setShowAddFacility(false)}
+        title="事業所を追加"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <Input
+            label="事業所名 *"
+            value={newFacility.name}
+            onChange={(e) =>
+              setNewFacility({ ...newFacility, name: e.target.value })
+            }
+            placeholder="例：本院"
+          />
+          <Input
+            label="住所"
+            value={newFacility.address}
+            onChange={(e) =>
+              setNewFacility({ ...newFacility, address: e.target.value })
+            }
+            placeholder="例：東京都渋谷区代々木1-1-1"
+          />
         </div>
-      )}
+
+        <div className="flex justify-end gap-2 mt-6">
+          <Button
+            variant="secondary"
+            onClick={() => setShowAddFacility(false)}
+          >
+            キャンセル
+          </Button>
+          <Button
+            onClick={handleAddFacility}
+            disabled={addingFacility || !newFacility.name}
+          >
+            {addingFacility ? (
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            ) : (
+              <Plus className="w-4 h-4 mr-2" />
+            )}
+            追加
+          </Button>
+        </div>
+      </Modal>
 
       {/* Add Area Modal */}
-      {showAddArea && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <Card className="w-full max-w-md mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">地区を追加</h2>
-              <button
-                onClick={() => setShowAddArea(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <Input
-                label="地区名 *"
-                value={newArea.name}
-                onChange={(e) => setNewArea({ name: e.target.value })}
-                placeholder="例：渋谷区"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 mt-6">
-              <Button variant="secondary" onClick={() => setShowAddArea(false)}>
-                キャンセル
-              </Button>
-              <Button
-                onClick={handleAddArea}
-                disabled={addingArea || !newArea.name}
-              >
-                {addingArea ? (
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                ) : (
-                  <Plus className="w-4 h-4 mr-2" />
-                )}
-                追加
-              </Button>
-            </div>
-          </Card>
+      <Modal
+        isOpen={showAddArea}
+        onClose={() => setShowAddArea(false)}
+        title="地区を追加"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <Input
+            label="地区名 *"
+            value={newArea.name}
+            onChange={(e) => setNewArea({ name: e.target.value })}
+            placeholder="例：渋谷区"
+          />
         </div>
-      )}
+
+        <div className="flex justify-end gap-2 mt-6">
+          <Button variant="secondary" onClick={() => setShowAddArea(false)}>
+            キャンセル
+          </Button>
+          <Button
+            onClick={handleAddArea}
+            disabled={addingArea || !newArea.name}
+          >
+            {addingArea ? (
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            ) : (
+              <Plus className="w-4 h-4 mr-2" />
+            )}
+            追加
+          </Button>
+        </div>
+      </Modal>
     </AdminLayout>
   );
 }

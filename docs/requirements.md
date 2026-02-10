@@ -69,9 +69,46 @@ Slackを患者ごとの情報集約ハブとし、Google Cloud上のAIエージ�
 
 **UC-8: API設定・モニタリング** — サービス別キー管理 → 接続テスト → 使用量確認 → セキュリティチェック
 
-## 6. 機能要件サマリー
+## 6. 実装状況サマリー
 
-### 6.1 Admin UI（14画面）
+### Phase 1: 基盤構築 ✅ 完了
+- ✅ M-1: Firestoreデータモデル + デモデータ
+- ✅ M-2: FastAPI基本構造 + Cloud Run
+- ✅ M-3: Firebase Auth + ログイン画面
+- ✅ M-4: Admin UIフレームワーク
+
+### Phase 2: セットアップ＋患者登録 ✅ 完了
+- ✅ M-5: セットアップウィザード
+- ✅ M-6: 患者登録 + Slack自動連携
+- ✅ M-7: API & サービス設定画面
+
+### Phase 3: Slack Bot＋AIエージェント ✅ 完了
+- ✅ M-8: Slack Bot基本機能
+- ✅ M-9: Intake Agent
+- ✅ M-10: Context Agent
+- ✅ M-11: Alert Agent
+- ✅ M-12: Summary Agent
+
+### Phase 4: ダッシュボード＋一覧＋詳細 ✅ 完了
+- ✅ M-13: ダッシュボード
+- ✅ M-14: 患者一覧
+- ✅ M-15: 患者詳細
+- ✅ M-16: アラート一覧・詳細
+
+### Phase 5: RAG＋定時タスク＋仕上げ ✅ 完了
+- ✅ M-17: RAGナレッジベース（CRUD + Embedding検索実装完了 — Firestore + text-embedding-005 + cosine similarity）
+- ✅ M-18: 定時タスク（エンドポイント + cron認証実装済み、Cloud Scheduler設定手順確定）
+- ✅ M-19: デプロイ + デモデータ整備
+- ✅ マスタ管理・組織設定画面
+- ✅ AIエージェント設定画面（カスタムプロンプト管理）
+- ✅ CSVインポート・一括メンバー割当
+- ✅ 患者削除・エクスポート機能
+
+---
+
+## 7. 機能要件サマリー
+
+### 7.1 Admin UI（14ルート）
 
 | 画面 | 説明 | 詳細参照 |
 |------|------|---------|
@@ -90,19 +127,19 @@ Slackを患者ごとの情報集約ハブとし、Google Cloud上のAIエージ�
 | マスタ管理 | 事業所・地区・タグのCRUD | ui-ux-design.md |
 | 組織設定 | 組織情報・メンバー管理・ロール設定 | ui-ux-design.md |
 
-### 6.2 Slack Bot
+### 7.2 Slack Bot
 
 - チャンネル構成: `#oncall-night` + `#pt-{患者名}`
 - 3モードインタラクション: コンテキスト蓄積（Botリプライ）、カジュアルチャット（直接投稿）、AI相談（@bot）
 - 詳細: `slack-bot-design.md`
 
-### 6.3 AIエージェント（ADK）
+### 7.3 AIエージェント（ADK）
 
-- 4サブエージェント: Intake / Context / Alert / Summary
+- BaseAgent共通基底 + 4サブエージェント: Intake / Context / Alert / Summary
 - RAGナレッジベース: 8カテゴリ、エージェント別バインド
 - 詳細: `agent-design.md`
 
-### 6.4 バックエンドAPI
+### 7.4 バックエンドAPI
 
 - 患者CRUD + Slack自動連携
 - セットアップ + 接続テスト
@@ -111,7 +148,7 @@ Slackを患者ごとの情報集約ハブとし、Google Cloud上のAIエージ�
 - エクスポート
 - 詳細: `api-design.md`
 
-## 7. 非機能要件
+## 8. 非機能要件
 
 | ID | カテゴリ | 要件 |
 |----|---------|------|
@@ -120,7 +157,7 @@ Slackを患者ごとの情報集約ハブとし、Google Cloud上のAIエージ�
 | NFR-3 | パフォーマンス | 患者登録（全自動完了）: 5秒以内 |
 | NFR-4 | スケーラビリティ | 100名以上の患者管理を想定した設計 |
 | NFR-5 | セキュリティ | Firebase Authentication（Admin UI） |
-| NFR-6 | セキュリティ | Secret Manager（全APIキー暗号化保存） |
+| NFR-6 | セキュリティ | Firestore service_configs（APIキー一元管理） |
 | NFR-7 | セキュリティ | Slackリクエスト署名検証 |
 | NFR-8 | セキュリティ | Firestoreの組織スコープACL |
 | NFR-9 | セキュリティ | 患者データの保存時暗号化（GCPデフォルト） |
@@ -128,7 +165,7 @@ Slackを患者ごとの情報集約ハブとし、Google Cloud上のAIエージ�
 | NFR-11 | 運用性 | Cloud Loggingによるログ集約 |
 | NFR-12 | デモ | 模擬患者24名以上のデータ |
 
-## 8. MVP実装スコープ
+## 9. MVP実装スコープ
 
 ### 必須タスク（推定50h）
 
@@ -162,7 +199,7 @@ Slackを患者ごとの情報集約ハブとし、Google Cloud上のAIエージ�
 - 使用量モニタリング（コスト表示）
 - キーローテーション機能
 
-## 9. ハッカソン提出物
+## 10. ハッカソン提出物
 
 | 提出物 | 要件 |
 |--------|------|
@@ -171,7 +208,7 @@ Slackを患者ごとの情報集約ハブとし、Google Cloud上のAIエージ�
 | Zenn記事 | 開発過程・技術選定・アーキテクチャ |
 | デモ動画（3分） | 7シーン構成（課題→セットアップ→報告→アラート→サマリー→AdminUI→まとめ） |
 
-## 10. 審査基準への適合
+## 11. 審査基準への適合
 
 | 審査基準 | 適合内容 |
 |---------|---------|

@@ -29,7 +29,7 @@ uvicorn main:app --reload --port 8080
 ## 環境変数
 
 ```bash
-GOOGLE_CLOUD_PROJECT=homecare-ai-dev
+GOOGLE_CLOUD_PROJECT=aihomecare-486506
 GCP_REGION=asia-northeast1
 FIRESTORE_DATABASE_ID=(default)
 GCS_BUCKET_NAME=homecare-ai-files

@@ -6,21 +6,36 @@ event type and content.
 """
 
 import re
+import time
+from collections import OrderedDict
 from typing import Any
 
 from services.firestore_service import FirestoreService
 from services.slack_service import SlackService
 
+from .base_agent import BaseAgent
 from .intake_agent import IntakeAgent
 from .context_agent import ContextAgent, SaveAgent
 from .alert_agent import AlertAgent
 from .summary_agent import SummaryAgent
 
 
+# LRU-based dedup cache for processed message timestamps
+_processed_messages: OrderedDict[str, None] = OrderedDict()
+_MAX_PROCESSED = 5000
+
+# Channel-to-patient mapping cache (TTL 300s)
+_channel_patient_cache: dict[str, tuple[dict[str, Any] | None, float]] = {}
+_CHANNEL_CACHE_TTL = 300
+
+# User name cache (persists for process lifetime, cleared on redeploy)
+_user_name_cache: dict[str, str] = {}
+
+
 class RootAgent:
     """
     Root Agent for orchestrating sub-agents.
-    
+
     Routes Slack events to the appropriate agent based on:
     - Event type (message, app_mention)
     - Message content (keywords, commands)
@@ -28,18 +43,43 @@ class RootAgent:
     """
 
     def __init__(self):
-        self.intake_agent = IntakeAgent()
-        self.context_agent = ContextAgent()
-        self.save_agent = SaveAgent()
-        self.alert_agent = AlertAgent()
-        self.summary_agent = SummaryAgent()
+        self.intake_agent: IntakeAgent | None = None
+        self.context_agent: ContextAgent | None = None
+        self.save_agent: SaveAgent | None = None
+        self.alert_agent: AlertAgent | None = None
+        self.summary_agent: SummaryAgent | None = None
 
-    async def route_event(self, event: dict[str, Any]) -> dict[str, Any]:
+    async def _init_agents(self, org_id: str | None) -> None:
+        """Initialize sub-agents with org-specific custom prompts."""
+        custom: dict = {}
+        if org_id:
+            custom = await BaseAgent.get_agent_prompts(org_id)
+        shared = custom.get("shared_prompt")
+        agent_prompts = custom.get("agent_prompts", {})
+
+        self.intake_agent = IntakeAgent(
+            system_prompt=agent_prompts.get("intake"), shared_prompt=shared
+        )
+        self.context_agent = ContextAgent(
+            system_prompt=agent_prompts.get("context"), shared_prompt=shared
+        )
+        self.save_agent = SaveAgent()
+        self.alert_agent = AlertAgent(
+            system_prompt=agent_prompts.get("alert"), shared_prompt=shared
+        )
+        self.summary_agent = SummaryAgent(
+            system_prompt=agent_prompts.get("summary"), shared_prompt=shared
+        )
+
+    async def route_event(
+        self, event: dict[str, Any], org_id: str | None = None
+    ) -> dict[str, Any]:
         """
         Route a Slack event to the appropriate agent.
 
         Args:
             event: Slack event data
+            org_id: Organization ID (from signature verification)
 
         Returns:
             dict with processing results
@@ -63,6 +103,25 @@ class RootAgent:
         patient_id = patient.get("id")
         anchor_ts = patient.get("anchor_message_ts")
 
+        # Resolve org_id: prefer argument, fallback to patient's org_id
+        if not org_id:
+            org_id = patient.get("org_id")
+
+        # Store org_id for RAG lookups
+        self._current_org_id = org_id
+
+        # Initialize sub-agents with org-specific prompts
+        await self._init_agents(org_id)
+
+        # Get Slack bot token for this org
+        self._slack_token = await SlackService.get_bot_token(org_id) if org_id else None
+        if not self._slack_token:
+            return {
+                "success": False,
+                "error": f"Slack Bot Tokenが取得できません (org_id={org_id})",
+                "response": None,
+            }
+
         # Route based on event type
         if event_type == "message":
             # Check if this is a reply to the anchor message
@@ -84,6 +143,17 @@ class RootAgent:
             }
 
         elif event_type == "app_mention":
+            # Deduplicate app_mention events too
+            if ts and self._is_already_processed(channel, ts):
+                return {
+                    "success": True,
+                    "action": "skipped",
+                    "reason": "already_processed",
+                    "response": None,
+                }
+            if ts:
+                self._mark_as_processed(channel, ts)
+
             return await self._handle_mention(
                 patient_id=patient_id,
                 text=text,
@@ -102,15 +172,18 @@ class RootAgent:
         self, channel_id: str
     ) -> dict[str, Any] | None:
         """
-        Resolve patient from Slack channel ID.
-        
-        Searches Firestore for a patient with matching slack_channel_id.
+        Resolve patient from Slack channel ID (cached with 300s TTL).
         """
         if not channel_id:
             return None
 
-        # Get the patient by channel ID
-        # This requires a query on slack_channel_id field
+        # Check cache
+        if channel_id in _channel_patient_cache:
+            data, ts = _channel_patient_cache[channel_id]
+            if time.monotonic() - ts < _CHANNEL_CACHE_TTL:
+                return data
+
+        # Query Firestore
         db = FirestoreService.get_client()
         query = db.collection("patients").where(
             "slack_channel_id", "==", channel_id
@@ -121,9 +194,41 @@ class RootAgent:
             doc = docs[0]
             data = doc.to_dict()
             data["id"] = doc.id
+            _channel_patient_cache[channel_id] = (data, time.monotonic())
             return data
 
+        _channel_patient_cache[channel_id] = (None, time.monotonic())
         return None
+
+    def _claim_message(self, channel: str, message_ts: str) -> bool:
+        """
+        Attempt to claim a message for processing using Slack reaction.
+        Returns True if claimed (first processor), False if already claimed.
+        Uses reactions.add as a distributed lock across Cloud Run instances.
+        """
+        try:
+            client = SlackService.get_client(self._slack_token)
+            client.reactions_add(channel=channel, name="eyes", timestamp=message_ts)
+            return True  # 👀 added — we are the first processor
+        except Exception as e:
+            if "already_reacted" in str(e):
+                return False  # Another instance already processing
+            # Other errors (network etc.) — fall through to in-memory dedup
+            print(f"Reaction claim failed: {e}")
+            return True  # Err on side of processing (in-memory dedup catches actual dupes)
+
+    def _is_already_processed(self, channel: str, message_ts: str) -> bool:
+        """Check if a message was already processed using in-memory set."""
+        key = f"{channel}:{message_ts}"
+        return key in _processed_messages
+
+    def _mark_as_processed(self, channel: str, message_ts: str) -> None:
+        """Mark message as processed in LRU cache."""
+        key = f"{channel}:{message_ts}"
+        _processed_messages[key] = None
+        # Evict oldest entries to prevent unbounded growth
+        while len(_processed_messages) > _MAX_PROCESSED:
+            _processed_messages.popitem(last=False)
 
     async def _handle_report(
         self,
@@ -136,12 +241,37 @@ class RootAgent:
     ) -> dict[str, Any]:
         """
         Handle a report (thread reply to anchor message).
-        
+
         Routes to Intake Agent for BPS structuring.
+        Dedup: in-memory Set (fast) → Slack reaction 👀 (distributed lock).
         """
+        # Check if already processed (duplicate event from Slack retry)
+        if self._is_already_processed(channel, message_ts):
+            return {
+                "success": True,
+                "action": "skipped",
+                "reason": "already_processed",
+                "response": None,
+            }
+
+        # Mark as processing immediately to prevent race conditions
+        self._mark_as_processed(channel, message_ts)
+
+        # Distributed dedup: claim via Slack reaction (works across instances)
+        if not self._claim_message(channel, message_ts):
+            return {
+                "success": True,
+                "action": "skipped",
+                "reason": "already_claimed",
+                "response": None,
+            }
+
         # Get user info for reporter name
         reporter_name = await self._get_user_name(user)
         reporter_role = self._infer_role_from_text(text)
+
+        # Search RAG knowledge base
+        knowledge_chunks = await self._search_knowledge(text, "intake")
 
         # Process with Intake Agent
         result = await self.intake_agent.process(
@@ -150,29 +280,21 @@ class RootAgent:
             reporter_name=reporter_name,
             reporter_role=reporter_role,
             slack_message_ts=message_ts,
+            slack_user_id=user,
+            knowledge_chunks=knowledge_chunks,
         )
 
         if result.get("success"):
             # Post confirmation in thread
-            await SlackService.get_client().chat_postMessage(
+            client = SlackService.get_client(self._slack_token)
+            client.chat_postMessage(
                 channel=channel,
                 thread_ts=thread_ts,
                 text=result.get("confirmation_message", "✅ 保存しました"),
             )
 
-            # Run immediate alert detection
-            alert_result = await self.alert_agent.process(
-                patient_id=patient_id,
-                new_report=result.get("bps_data"),
-            )
-
-            # Post alerts if any
-            for alert in alert_result.get("alerts", []):
-                alert_message = self.alert_agent.format_alert_message(alert)
-                await SlackService.get_client().chat_postMessage(
-                    channel=channel,
-                    text=alert_message,
-                )
+            # Alert detection is handled by scheduled cron scan (/cron/morning-scan)
+            # See: settings.py alert_scan_times for schedule configuration
 
         return {
             "success": result.get("success"),
@@ -218,10 +340,14 @@ class RootAgent:
         thread_ts: str | None,
     ) -> dict[str, Any]:
         """Handle summary request."""
-        result = await self.summary_agent.process(patient_id=patient_id)
+        knowledge_chunks = await self._search_knowledge("BPS経過サマリー 患者状態", "summary")
+        result = await self.summary_agent.process(
+            patient_id=patient_id,
+            knowledge_chunks=knowledge_chunks,
+        )
 
         if result.get("success"):
-            await SlackService.get_client().chat_postMessage(
+            SlackService.get_client(self._slack_token).chat_postMessage(
                 channel=channel,
                 thread_ts=thread_ts,
                 text=result.get("summary", "サマリーを生成できませんでした"),
@@ -246,7 +372,7 @@ class RootAgent:
             thread_ts=thread_ts,
         )
 
-        await SlackService.get_client().chat_postMessage(
+        SlackService.get_client(self._slack_token).chat_postMessage(
             channel=channel,
             thread_ts=thread_ts,
             text=result.get("message", ""),
@@ -266,13 +392,15 @@ class RootAgent:
         thread_ts: str | None,
     ) -> dict[str, Any]:
         """Handle question/query."""
+        knowledge_chunks = await self._search_knowledge(question, "context")
         result = await self.context_agent.process(
             patient_id=patient_id,
             question=question,
+            knowledge_chunks=knowledge_chunks,
         )
 
         if result.get("success"):
-            await SlackService.get_client().chat_postMessage(
+            SlackService.get_client(self._slack_token).chat_postMessage(
                 channel=channel,
                 thread_ts=thread_ts,
                 text=result.get("response", "回答を生成できませんでした"),
@@ -285,20 +413,69 @@ class RootAgent:
         }
 
     async def _get_user_name(self, user_id: str) -> str:
-        """Get user name from Slack user ID."""
-        try:
-            response = await SlackService.get_client().users_info(user=user_id)
-            if response.get("ok"):
-                user_info = response.get("user", {})
-                return (
-                    user_info.get("real_name")
-                    or user_info.get("profile", {}).get("display_name")
-                    or user_info.get("name")
-                    or "不明"
-                )
-        except Exception:
-            pass
+        """Get user display name from Slack user ID with caching and retry."""
+        if not user_id:
+            return "不明"
+
+        # Check cache first
+        if user_id in _user_name_cache:
+            return _user_name_cache[user_id]
+
+        for attempt in range(2):  # 1 retry
+            try:
+                client = SlackService.get_client(self._slack_token)
+                response = client.users_info(user=user_id)
+                if response.get("ok"):
+                    user_info = response.get("user", {})
+                    profile = user_info.get("profile", {})
+                    name = (
+                        profile.get("display_name_normalized")
+                        or profile.get("display_name")
+                        or profile.get("real_name_normalized")
+                        or profile.get("real_name")
+                        or user_info.get("real_name")
+                        or user_info.get("name")
+                    )
+                    if name:
+                        _user_name_cache[user_id] = name
+                        return name
+                    print(f"[WARN] No name fields for user_id={user_id}")
+                else:
+                    error = response.get("error", "unknown")
+                    print(f"[ERROR] users.info ok=false: error={error}, user_id={user_id}")
+            except Exception as e:
+                print(f"[ERROR] users.info attempt {attempt+1} failed for {user_id}: {type(e).__name__}: {e}")
+                if attempt == 0:
+                    import asyncio
+                    await asyncio.sleep(0.5)
+                    continue
+
         return "不明"
+
+    async def _search_knowledge(self, query: str, agent_id: str) -> list[dict[str, Any]]:
+        """Search RAG knowledge base for relevant chunks."""
+        try:
+            from services.rag_service import RAGService
+
+            org_id = getattr(self, "_current_org_id", None)
+            if not org_id:
+                return []
+
+            api_key = await BaseAgent.get_gemini_api_key(org_id)
+            if not api_key:
+                return []
+
+            categories = await FirestoreService.get_agent_bindings(org_id, agent_id)
+            return await RAGService.search(
+                query=query,
+                org_id=org_id,
+                categories=categories,
+                api_key=api_key,
+                limit=5,
+            )
+        except Exception as e:
+            print(f"[WARN] Knowledge search failed: {e}")
+            return []
 
     def _infer_role_from_text(self, text: str) -> str:
         """Infer reporter role from text content."""
@@ -331,11 +508,22 @@ class RootAgent:
     async def run_morning_scan(self, org_id: str) -> dict[str, Any]:
         """
         Run the morning scan for all patients.
-        
+
         Called by Cloud Scheduler via /cron/morning-scan endpoint.
         """
+        # Store org_id for RAG lookups
+        self._current_org_id = org_id
+
+        # Initialize sub-agents with org-specific prompts
+        await self._init_agents(org_id)
+
+        # Search RAG knowledge base for alert context
+        knowledge_chunks = await self._search_knowledge("患者状態変化 アラート検知", "alert")
+
         # Run alert agent scan
-        scan_results = await self.alert_agent.scan_all_patients(org_id)
+        scan_results = await self.alert_agent.scan_all_patients(
+            org_id, knowledge_chunks=knowledge_chunks
+        )
 
         # Format morning report
         report = self.alert_agent.format_morning_report(scan_results)

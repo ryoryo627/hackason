@@ -45,14 +45,37 @@ class BaseAgent:
 ## 1. エージェント構成（ADKマルチエージェント）
 
 ```
+BaseAgent (共通基底クラス — Gemini連携・プロンプト管理)
+  │
 Root Agent (オーケストレーター)
 ├── Intake Agent    : テキスト/ファイル → BPS構造化 → Firestore保存
 ├── Context Agent   : コンテキスト参照 → BPS分析回答
 ├── Alert Agent     : 横断分析 → 異変パターン検知
 └── Summary Agent   : BPS経過サマリー → オンコール引き継ぎ
          ↕
-  RAG Knowledge Base (Vertex AI Vector Search)
+  RAG Knowledge Base (✅ Firestore + text-embedding-005 + cosine similarity 実装済み)
 ```
+
+### BaseAgent（共通基底クラス）
+
+`agents/base_agent.py` に実装。全エージェントが継承。
+
+**主要機能:**
+- Gemini API連携（gemini-3-flash-preview、JSON mode対応）
+- Thinking Level設定（low=1024, medium=8192, high=24576トークン）
+- Firestore `service_configs`からのAPIキー取得
+- カスタムプロンプト管理（Admin UIから設定可能）
+- 患者コンテキスト構築（`build_patient_context()`）
+- RAGナレッジブロック構築（`build_knowledge_block()`）
+
+### カスタムプロンプト管理
+
+Admin UI（`/settings/agents`）からエージェント別にプロンプトをカスタマイズ可能。
+
+- **共通システムプロンプト**: 全エージェントに適用される追加プロンプト
+- **エージェント別プロンプト**: Intake/Context/Alert/Summaryそれぞれに個別の追加プロンプト
+- **マージロジック**: デフォルトプロンプト + 共通カスタムプロンプト + エージェント別カスタムプロンプト
+- **保存先**: Firestore `service_configs/{org_id}_agent_prompts`
 
 ## 2. 共通AIペルソナ
 
@@ -380,23 +403,25 @@ BPSフレームワークに基づいて回答してください。
 
 ### 8.1 アーキテクチャ
 
+> ✅ **実装状況**: RAG全パイプライン実装完了（テキスト抽出→チャンキング→Embedding生成→Firestore保存→cosine similarity検索）
+
 ```
-ドキュメント (PDF/MD/URL)
+ドキュメント (PDF/TXT/MD/DOCX)
   │
   ▼
-テキスト抽出
+テキスト抽出 (PyPDF2/python-docx) + アップロード (POST /api/knowledge/documents/{id}/upload)
   │
   ▼
-チャンキング (500 tokens, 50 overlap)
+チャンキング (段落境界優先, 500文字, 50 overlap, max 100チャンク)
   │
   ▼
-Embedding生成 (text-embedding-005, 768次元)
+Embedding生成 (google-genai text-embedding-005, 768次元, バッチ20件)
   │
   ▼
-Vertex AI Vector Search Index登録
+Firestore保存 (organizations/{org_id}/knowledge/{doc_id}/chunks/{chunk_id})
   │
   ▼
-検索時: クエリEmbedding → Vector Search → Top-K → カテゴリフィルタ → エージェントへ
+検索時: クエリEmbed → 全チャンク取得(カテゴリフィルタ) → cosine similarity → Top-K返却
 ```
 
 ### 8.2 ナレッジカテゴリ

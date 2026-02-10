@@ -7,7 +7,7 @@ based on patient data and RAG knowledge.
 
 from typing import Any
 
-from .base_agent import BaseAgent
+from .base_agent import BaseAgent, DEFAULT_AGENT_PROMPTS
 from services.firestore_service import FirestoreService
 
 
@@ -33,18 +33,15 @@ BPSフレームワークに基づいて回答してください。
 class ContextAgent(BaseAgent):
     """
     Context Agent for answering questions about patients.
-    
+
     Provides BPS-aware responses using patient context and RAG knowledge.
     """
 
-    def __init__(self):
+    def __init__(self, system_prompt: str | None = None, shared_prompt: str | None = None):
         super().__init__(
             thinking_level="medium",
-            system_prompt=(
-                "あなたは患者に関する質問に答える医療AIアシスタントです。\n"
-                "患者の経過データとナレッジベースを参照し、"
-                "エビデンスに基づいた回答を提供してください。"
-            ),
+            system_prompt=system_prompt or DEFAULT_AGENT_PROMPTS["context"],
+            shared_prompt=shared_prompt,
         )
 
     async def process(

@@ -29,20 +29,21 @@ async def list_alerts(
         limit=limit,
     )
     
-    # Enrich with patient info
-    enriched_alerts = []
+    # Enrich with patient info (batch fetch to avoid N+1)
+    patient_ids = list({a.get("patient_id") for a in alerts if a.get("patient_id")})
+    patients_map = await FirestoreService.get_patients_batch(patient_ids)
+
     for alert in alerts:
-        # Get patient name from the alert's patient reference
         patient_id = alert.get("patient_id")
-        if patient_id:
-            patient = await FirestoreService.get_patient(patient_id)
-            if patient:
-                alert["patient_name"] = patient.get("name", "不明")
-        enriched_alerts.append(alert)
-    
+        if patient_id and patient_id in patients_map:
+            alert["patient_name"] = patients_map[patient_id].get("name", "不明")
+        # シードデータには title がない → pattern_name をフォールバック
+        if not alert.get("title"):
+            alert["title"] = alert.get("pattern_name", "アラート")
+
     return {
-        "alerts": enriched_alerts,
-        "total": len(enriched_alerts),
+        "alerts": alerts,
+        "total": len(alerts),
     }
 
 

@@ -15,7 +15,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="w-full">
         {label && (
-          <label htmlFor={inputId} className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor={inputId} className="block text-sm font-medium tracking-[-0.01em] text-text-primary mb-1">
             {label}
           </label>
         )}
@@ -23,15 +23,16 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           id={inputId}
           className={clsx(
-            "block w-full rounded-lg border px-3 py-2 text-gray-900 placeholder:text-gray-400",
-            "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent",
-            "disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed",
-            error ? "border-red-500" : "border-gray-300",
+            "block w-full rounded-md border px-2.5 py-1.5 text-sm text-text-primary placeholder:text-text-tertiary",
+            "focus:outline-none focus:border-accent-500 focus:ring-[3px] focus:ring-accent-500/15",
+            "disabled:bg-bg-secondary disabled:text-text-secondary disabled:cursor-not-allowed",
+            "transition-all duration-200 ease-in-out",
+            error ? "border-danger" : "border-border hover:border-border-strong",
             className
           )}
           {...props}
         />
-        {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
+        {error && <p className="mt-1 text-sm text-danger">{error}</p>}
       </div>
     );
   }

@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     # GCP Project
-    google_cloud_project: str = Field(default="homecare-ai-dev")
+    google_cloud_project: str = Field(default="aihomecare-486506")
     gcp_region: str = Field(default="asia-northeast1")
 
     # Firestore
@@ -106,22 +106,3 @@ class SecretManager:
         client = cls._get_client()
         response = client.access_secret_version(request={"name": secret_ref})
         return response.payload.data.decode("UTF-8")
-
-
-# Convenience functions for common secrets
-def get_slack_bot_token() -> str:
-    """Get Slack Bot Token from Secret Manager."""
-    settings = get_settings()
-    return SecretManager.get_secret(settings.slack_bot_token_secret)
-
-
-def get_slack_signing_secret() -> str:
-    """Get Slack Signing Secret from Secret Manager."""
-    settings = get_settings()
-    return SecretManager.get_secret(settings.slack_signing_secret_secret)
-
-
-def get_gemini_api_key() -> str:
-    """Get Gemini API Key from Secret Manager."""
-    settings = get_settings()
-    return SecretManager.get_secret(settings.gemini_api_key_secret)

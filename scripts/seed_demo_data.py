@@ -109,6 +109,84 @@ TAG_DISTRIBUTION = {
 }
 
 
+# Extra data for 在宅5つの呪文 + referral (populated for 5 demo patients)
+PATIENT_EXTRA_DATA: dict[str, dict[str, Any]] = {
+    "田中太郎": {
+        "primary_diagnosis": "COPD",
+        "care_level": "要介護3",
+        "insurance_type": "後期高齢者1割",
+        "adl_description": "屋内杖歩行、入浴に介助必要",
+        "special_disease_flag": "別表7該当",
+        "medical_procedures": ["HOT", "吸入", "CV管理"],
+        "residence_type": "自宅（家族同居）",
+        "referral_source": {
+            "institution_name": "東京総合病院",
+            "doctor_name": "佐藤",
+            "department": "呼吸器内科",
+            "referral_date": "2025-06-15",
+        },
+        "clinical_background": "COPD急性増悪で入院。退院後の在宅酸素療法管理のため紹介。心不全合併も判明し、多職種連携による包括的管理が必要。",
+        "key_person": {
+            "name": "田中花子",
+            "relationship": "妻",
+            "phone": "03-1234-5678",
+        },
+    },
+    "山田花子": {
+        "primary_diagnosis": "心不全",
+        "care_level": "要介護2",
+        "insurance_type": "後期高齢者1割",
+        "adl_description": "屋内伝い歩き、食事自立",
+        "medical_procedures": ["インスリン"],
+        "residence_type": "自宅（独居）",
+        "key_person": {
+            "name": "山田一郎",
+            "relationship": "長男",
+            "phone": "090-1111-2222",
+        },
+    },
+    "佐藤一郎": {
+        "primary_diagnosis": "認知症",
+        "care_level": "要介護4",
+        "insurance_type": "後期高齢者1割",
+        "adl_description": "車椅子移動、全介助",
+        "special_disease_flag": "別表8該当",
+        "medical_procedures": ["PEG", "バルーン"],
+        "residence_type": "グループホーム",
+        "referral_source": {
+            "institution_name": "品川メディカルセンター",
+            "doctor_name": "高橋",
+            "department": "神経内科",
+            "referral_date": "2025-04-01",
+        },
+        "clinical_background": "アルツハイマー型認知症の進行に伴い在宅管理困難となりグループホーム入居。嚥下機能低下によりPEG造設後の管理目的で紹介。",
+    },
+    "鈴木美智子": {
+        "primary_diagnosis": "がん",
+        "care_level": "要介護5",
+        "insurance_type": "後期高齢者1割",
+        "adl_description": "臥床、全介助",
+        "special_disease_flag": "別表7該当",
+        "medical_procedures": ["IVH", "褥瘡処置"],
+        "residence_type": "自宅（家族同居）",
+        "clinical_background": "膵臓がんステージIV。BSC方針で在宅看取りの方向。疼痛コントロールと褥瘡管理が課題。",
+        "key_person": {
+            "name": "鈴木健太",
+            "relationship": "長男",
+            "phone": "090-3333-4444",
+        },
+    },
+    "高橋健二": {
+        "primary_diagnosis": "パーキンソン病",
+        "care_level": "要介護2",
+        "insurance_type": "国保",
+        "adl_description": "歩行器使用、入浴見守り",
+        "medical_procedures": ["在宅自己注射"],
+        "residence_type": "自宅（家族同居）",
+    },
+}
+
+
 def create_patient_data(
     index: int,
     name: str,
@@ -123,7 +201,7 @@ def create_patient_data(
     """Create patient document data."""
     conditions = random.sample(CONDITIONS, random.randint(1, 4))
 
-    return {
+    base = {
         "org_id": DEMO_ORG_ID,
         "name": name,
         "name_kana": name_kana,
@@ -142,6 +220,12 @@ def create_patient_data(
         "created_at": firestore.SERVER_TIMESTAMP,
         "updated_at": firestore.SERVER_TIMESTAMP,
     }
+
+    # Add 在宅5つの呪文 + referral data for select patients
+    extra = PATIENT_EXTRA_DATA.get(name, {})
+    base.update(extra)
+
+    return base
 
 
 def create_demo_reports(patient_id: str, db: firestore.Client) -> list[str]:
@@ -345,8 +429,11 @@ def create_demo_alerts(patient_id: str, report_ids: list[str], db: firestore.Cli
     """Create demo alerts for detailed patient."""
     alerts_data = [
         {
-            "severity": "HIGH",
-            "pattern_type": "A-2",
+            "patient_id": patient_id,
+            "org_id": DEMO_ORG_ID,
+            "title": "複合Bio悪化アラート",
+            "severity": "high",
+            "pattern_id": "A-2",
             "pattern_name": "複合Bio悪化",
             "message": """⚠️ 【複合Bio悪化アラート】田中太郎様
 
@@ -383,8 +470,11 @@ SpO2低下（93%）+ 咳嗽悪化 + 食欲低下継続 + 服薬アドヒアラ�
             "created_at": datetime.now() - timedelta(days=3),
         },
         {
-            "severity": "HIGH",
-            "pattern_type": "A-5",
+            "patient_id": patient_id,
+            "org_id": DEMO_ORG_ID,
+            "title": "全軸複合アラート",
+            "severity": "high",
+            "pattern_id": "A-5",
             "pattern_name": "全軸複合",
             "message": """🚨 【全軸複合アラート】田中太郎様
 
@@ -514,7 +604,7 @@ def main() -> None:
     parser.add_argument(
         "--project",
         "-p",
-        default=os.environ.get("GOOGLE_CLOUD_PROJECT", "homecare-ai-dev"),
+        default=os.environ.get("GOOGLE_CLOUD_PROJECT", "aihomecare-486506"),
         help="GCP project ID",
     )
     parser.add_argument(

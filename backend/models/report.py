@@ -3,7 +3,7 @@ Report models for HomeCare AI Agent.
 Based on data-model.md specifications - BPS structured reports.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Literal
 
@@ -123,7 +123,7 @@ class ReportCreate(ReportBase):
 
     confidence: float = Field(..., ge=0.0, le=1.0, description="Structuring confidence")
     alert_triggered: bool = Field(default=False)
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class Report(ReportBase):
