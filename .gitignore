@@ -80,3 +80,6 @@ google-cloud-cli-darwin-arm.tar.gz
 
 # Zenn article (local draft)
 zenn-article.md
+
+# Sample reports (local reference)
+sample-alert-reports.md
