@@ -77,3 +77,6 @@ deploy*.sh
 # Sensitive docs (contains API keys)
 docs/setup-guide.md
 google-cloud-cli-darwin-arm.tar.gz
+
+# Zenn article (local draft)
+zenn-article.md

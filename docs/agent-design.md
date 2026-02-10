@@ -1,8 +1,8 @@
 # AIエージェント + RAGナレッジベース設計書
 
-## 0. Gemini 3.0 Flash 設定
+## 0. Gemini 3 Flash Preview 設定
 
-本システムは **Gemini 3.0 Flash** を使用。詳細なベストプラクティスは [gemini-3-flash-best-practices.md](./gemini-3-flash-best-practices.md) を参照。
+本システムは **Gemini 3 Flash Preview** を使用。
 
 ### エージェント別 Thinking Level 設定
 
@@ -15,7 +15,7 @@
 
 ### Thought Signatures
 
-Gemini 3.0ではThought Signaturesの循環が**必須**。各エージェントは受け取ったsignaturesを保持し、次のリクエストで返す必要がある。
+Gemini 3 Flash PreviewではThought Signaturesの循環が**必須**。各エージェントは受け取ったsignaturesを保持し、次のリクエストで返す必要がある。
 
 ```python
 class BaseAgent:
@@ -38,7 +38,7 @@ class BaseAgent:
 
 ### Temperature設定
 
-**全エージェントでデフォルト値 `1.0` を維持**。Gemini 3.0では低いtemperatureを設定するとループや性能低下の原因になる。
+**全エージェントでデフォルト値 `1.0` を維持**。Gemini 3 Flash Previewでは低いtemperatureを設定するとループや性能低下の原因になる。
 
 ---
 

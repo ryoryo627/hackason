@@ -69,9 +69,7 @@
 | データフェッチ | SWR | クライアントサイドデータキャッシュ | 2.4.0 |
 | 外部連携 | Slack Web API + Events API | 多職種インターフェース | - |
 
-> **技術選定の詳細**:
-> - Gemini 3.0 Flash: [gemini-3-flash-best-practices.md](./gemini-3-flash-best-practices.md)
-> - Next.js 16: [nextjs-16-best-practices.md](./nextjs-16-best-practices.md)
+> **技術選定の詳細**: Gemini 3 Flash Preview（ADKエージェント用LLM）、Next.js 16（Admin UIフレームワーク）
 
 ## 3. Cloud Run サービス設計
 

@@ -4,16 +4,16 @@
 
 ## 概要
 
-SlackをインターフェースとしてGoogle Cloud ADKエージェント群が多職種からの報告をBio-Psycho-Social（BPS）フレームワークで構造化・蓄積・分析します。
+SlackをインターフェースとしてGemini APIベースのマルチエージェント群が多職種からの報告をBio-Psycho-Social（BPS）フレームワークで構造化・蓄積・分析します。
 
 ## 技術スタック
 
 - **Python 3.12**
 - **FastAPI** - Web フレームワーク
-- **ADK (Agent Development Kit)** - マルチエージェント オーケストレーション
-- **Gemini 3.0 Flash** - LLM
+- **独自マルチエージェントフレームワーク (google-genai)** - マルチエージェント オーケストレーション
+- **Gemini 3 Flash Preview** - LLM
 - **Cloud Firestore** - データベース
-- **Vertex AI Vector Search** - RAG ベクトル検索
+- **Firestore + Embedding** - RAG ベクトル検索
 - **Slack SDK** - Slack Bot 連携
 
 ## セットアップ
@@ -34,7 +34,6 @@ GCP_REGION=asia-northeast1
 FIRESTORE_DATABASE_ID=(default)
 GCS_BUCKET_NAME=homecare-ai-files
 GCS_KNOWLEDGE_BUCKET=homecare-ai-knowledge
-VERTEX_AI_REGION=asia-northeast1
 EMBEDDING_MODEL=text-embedding-005
 GEMINI_MODEL=gemini-3-flash-preview
 ADMIN_UI_URL=http://localhost:3000
@@ -62,7 +61,7 @@ ADMIN_UI_URL=http://localhost:3000
 backend/
 ├── main.py              # FastAPI エントリポイント
 ├── config.py            # 環境変数・設定
-├── agents/              # ADK エージェント群
+├── agents/              # マルチエージェント群
 │   ├── root_agent.py
 │   ├── intake_agent.py
 │   ├── context_agent.py
