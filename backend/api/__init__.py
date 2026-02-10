@@ -8,6 +8,7 @@ from .knowledge import router as knowledge_router
 from .patients import router as patients_router
 from .settings import router as settings_router
 from .setup import router as setup_router
+from .users import router as users_router
 
 __all__ = [
     "alerts_router",
@@ -16,4 +17,5 @@ __all__ = [
     "patients_router",
     "settings_router",
     "setup_router",
+    "users_router",
 ]

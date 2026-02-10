@@ -685,6 +685,29 @@ export const alertsApi = {
       { method: "POST" }
     );
   },
+
+  /**
+   * Run on-demand alert scan for a specific patient.
+   */
+  scanPatient: (
+    patientId: string
+  ): Promise<{ success: boolean; patient_id: string; patient_name: string; alerts: Alert[]; error?: string }> => {
+    return apiRequest(`/api/alerts/scan/${patientId}?org_id=${getOrgId()}`, {
+      method: "POST",
+    });
+  },
+
+  /**
+   * Run on-demand alert scan for all patients.
+   */
+  scanAll: (
+    lookbackDays: number = 7
+  ): Promise<{ success: boolean; report: string; scan_results: Record<string, unknown> }> => {
+    return apiRequest(
+      `/api/alerts/scan?org_id=${getOrgId()}&lookback_days=${lookbackDays}`,
+      { method: "POST" }
+    );
+  },
 };
 
 // ============================================================
@@ -1021,6 +1044,70 @@ export const settingsApi = {
     const params = new URLSearchParams({ org_id: getOrgId() });
     if (agentId) params.append("agent_id", agentId);
     return apiRequest(`/api/settings/agents?${params}`, {
+      method: "DELETE",
+    });
+  },
+};
+
+// ============================================================
+// Users API (Admin)
+// ============================================================
+
+export interface OrgMember {
+  uid: string;
+  email: string;
+  display_name?: string;
+  role: string;
+  organization_id: string | null;
+  created_at?: string;
+}
+
+export const usersApi = {
+  /**
+   * List organization members.
+   */
+  list: (): Promise<{ users: OrgMember[]; total: number }> => {
+    return apiRequest("/api/users");
+  },
+
+  /**
+   * Create a new user.
+   */
+  create: (data: {
+    email: string;
+    password: string;
+    displayName?: string;
+    role: string;
+  }): Promise<{ success: boolean; uid: string }> => {
+    return apiRequest("/api/users", {
+      method: "POST",
+      body: JSON.stringify({
+        email: data.email,
+        password: data.password,
+        display_name: data.displayName || "",
+        role: data.role,
+      }),
+    });
+  },
+
+  /**
+   * Update a user's role.
+   */
+  updateRole: (
+    uid: string,
+    role: string
+  ): Promise<{ success: boolean; uid: string; role: string }> => {
+    return apiRequest(`/api/users/${uid}/role`, {
+      method: "PUT",
+      body: JSON.stringify({ role }),
+    });
+  },
+
+  /**
+   * Delete a user.
+   */
+  delete: (uid: string): Promise<{ success: boolean; uid: string }> => {
+    return apiRequest(`/api/users/${uid}`, {
       method: "DELETE",
     });
   },

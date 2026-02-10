@@ -8,6 +8,7 @@ event type and content.
 import re
 import time
 from collections import OrderedDict
+from datetime import datetime, timezone
 from typing import Any
 
 from services.firestore_service import FirestoreService
@@ -293,14 +294,40 @@ class RootAgent:
                 text=result.get("confirmation_message", "✅ 保存しました"),
             )
 
-            # Alert detection is handled by scheduled cron scan (/cron/morning-scan)
-            # See: settings.py alert_scan_times for schedule configuration
+            # Real-time alert detection
+            detected_alerts = []
+            try:
+                alert_knowledge = await self._search_knowledge(
+                    "患者状態変化 アラート検知", "alert"
+                )
+                new_report_data = {
+                    "timestamp": datetime.now(timezone.utc),
+                    "reporter_name": reporter_name,
+                    "reporter_role": reporter_role,
+                    "bps_classification": result.get("bps_data", {}),
+                }
+                alert_result = await self.alert_agent.process(
+                    patient_id,
+                    new_report=new_report_data,
+                    knowledge_chunks=alert_knowledge,
+                )
+                detected_alerts = alert_result.get("alerts", [])
+                if detected_alerts:
+                    for alert in detected_alerts:
+                        alert_msg = self.alert_agent.format_alert_message(alert)
+                        client.chat_postMessage(
+                            channel=channel,
+                            thread_ts=thread_ts,
+                            text=alert_msg,
+                        )
+            except Exception as e:
+                print(f"[WARN] Real-time alert detection failed for patient={patient_id}: {e}")
 
         return {
             "success": result.get("success"),
             "action": "intake",
             "report_id": result.get("report_id"),
-            "alerts": result.get("alerts", []),
+            "alerts": detected_alerts if result.get("success") else [],
             "response": result.get("confirmation_message"),
         }
 
@@ -505,11 +532,18 @@ class RootAgent:
 
         return "unknown"
 
-    async def run_morning_scan(self, org_id: str) -> dict[str, Any]:
+    async def run_morning_scan(
+        self, org_id: str, lookback_days: int = 7
+    ) -> dict[str, Any]:
         """
         Run the morning scan for all patients.
 
-        Called by Cloud Scheduler via /cron/morning-scan endpoint.
+        Called by Cloud Scheduler via /cron/morning-scan endpoint,
+        or manually via POST /api/alerts/scan.
+
+        Args:
+            org_id: Organization ID
+            lookback_days: How many days back to check for reports (default 7)
         """
         # Store org_id for RAG lookups
         self._current_org_id = org_id
@@ -522,7 +556,7 @@ class RootAgent:
 
         # Run alert agent scan
         scan_results = await self.alert_agent.scan_all_patients(
-            org_id, knowledge_chunks=knowledge_chunks
+            org_id, knowledge_chunks=knowledge_chunks, lookback_days=lookback_days
         )
 
         # Format morning report

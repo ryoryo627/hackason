@@ -15,9 +15,11 @@ import {
   ChevronsLeft,
   ChevronsRight,
   X,
+  UserCog,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useSidebar } from "./SidebarContext";
+import { getUserData } from "@/lib/api";
 
 interface NavItem {
   name: string;
@@ -31,25 +33,35 @@ interface NavGroup {
   items: NavItem[];
 }
 
-const navigation: NavGroup[] = [
-  {
-    name: "メイン",
-    items: [
-      { name: "ダッシュボード", href: "/", icon: LayoutDashboard },
-      { name: "患者一覧", href: "/patients", icon: Users },
-      { name: "アラート", href: "/alerts", icon: AlertTriangle },
-    ],
-  },
-  {
-    name: "設定",
-    items: [
-      { name: "サービス接続", href: "/settings/api", icon: Cable },
-      { name: "AI設定・ナレッジ", href: "/settings/agents", icon: Bot },
-      { name: "マスタ管理", href: "/settings/master", icon: Database },
-      { name: "組織設定", href: "/settings/organization", icon: Building2 },
-    ],
-  },
-];
+function getNavigation(): NavGroup[] {
+  const isAdmin = getUserData()?.role === "admin";
+
+  const settingsItems: NavItem[] = [
+    { name: "サービス接続", href: "/settings/api", icon: Cable },
+    { name: "AI設定・ナレッジ", href: "/settings/agents", icon: Bot },
+    { name: "マスタ管理", href: "/settings/master", icon: Database },
+    { name: "組織設定", href: "/settings/organization", icon: Building2 },
+  ];
+
+  if (isAdmin) {
+    settingsItems.push({ name: "ユーザー管理", href: "/settings/users", icon: UserCog });
+  }
+
+  return [
+    {
+      name: "メイン",
+      items: [
+        { name: "ダッシュボード", href: "/", icon: LayoutDashboard },
+        { name: "患者一覧", href: "/patients", icon: Users },
+        { name: "アラート", href: "/alerts", icon: AlertTriangle },
+      ],
+    },
+    {
+      name: "設定",
+      items: settingsItems,
+    },
+  ];
+}
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -97,7 +109,7 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-4">
-        {navigation.map((group) => (
+        {getNavigation().map((group) => (
           <div key={group.name} className="mb-6">
             {!collapsed && (
               <p className="px-3 mb-2 text-xs font-semibold text-text-tertiary uppercase tracking-wider">

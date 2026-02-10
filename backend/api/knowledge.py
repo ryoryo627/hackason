@@ -80,7 +80,8 @@ async def list_documents(
             documents.append(data)
 
         # Sort in Python (avoids composite index requirement)
-        documents.sort(key=lambda x: x.get("updated_at", "") or "", reverse=True)
+        # updated_at may be str or DatetimeWithNanoseconds — normalize to str for comparison
+        documents.sort(key=lambda x: str(x.get("updated_at", "") or ""), reverse=True)
 
         return {"documents": documents, "total": len(documents)}
     except Exception as e:
@@ -371,6 +372,114 @@ async def search_knowledge(
     results = results[:limit]
 
     return {"results": results, "query": query, "total": len(results)}
+
+
+@router.post("/seed")
+async def seed_knowledge(
+    org_id: str = Query(...),
+):
+    """Seed sample knowledge documents with chunks for demo/testing."""
+    db = FirestoreService.get_client()
+    knowledge_col = db.collection("organizations").document(org_id).collection("knowledge")
+    now = datetime.now(timezone.utc).isoformat()
+
+    seed_documents = [
+        {
+            "title": "BPSモデル基礎",
+            "category": "bps",
+            "source": "医療教育テキスト",
+            "status": "indexed",
+            "total_chunks": 3,
+            "agent_bindings": ["intake", "context", "summary"],
+            "created_at": now,
+            "updated_at": now,
+            "chunks": [
+                {
+                    "text": "BPSモデル（Bio-Psycho-Social Model）は、1977年にジョージ・エンゲルが提唱した医療モデルである。疾患を生物学的（Biological）、心理的（Psychological）、社会的（Social）の3つの側面から包括的に捉えるアプローチであり、従来の生物医学モデルの限界を克服するために開発された。在宅医療においては、患者の生活環境や家族関係、心理状態を含めた全人的アセスメントが不可欠であり、BPSモデルはその基盤となる。",
+                    "token_count": 180,
+                },
+                {
+                    "text": "BPSアセスメントの実施手法：生物学的側面では、バイタルサイン、既往歴、服薬状況、ADL（日常生活動作）、栄養状態を評価する。心理的側面では、認知機能（HDS-R、MMSE）、うつスクリーニング（GDS-15）、不安・ストレス評価、睡眠パターン、疼痛の主観的評価を行う。社会的側面では、家族構成・介護力、経済状況、住環境、社会的孤立リスク、利用中の介護サービスを確認する。",
+                    "token_count": 170,
+                },
+                {
+                    "text": "BPSモデルに基づく多職種連携：在宅医療チームでは、医師が生物学的側面を主に担当し、看護師がバイタルサインのモニタリングと心理的サポートを行う。ケアマネージャーは社会的側面の調整を担い、理学療法士・作業療法士がADL維持・改善を支援する。各職種がBPSの視点を共有することで、患者中心のケアプランが実現する。定期的なカンファレンスでBPS各側面の変化を共有し、ケアプランを適時修正することが重要である。",
+                    "token_count": 185,
+                },
+            ],
+        },
+        {
+            "title": "在宅医療ガイドライン",
+            "category": "homecare",
+            "source": "厚生労働省ガイドライン",
+            "status": "indexed",
+            "total_chunks": 3,
+            "agent_bindings": ["context", "summary"],
+            "created_at": now,
+            "updated_at": now,
+            "chunks": [
+                {
+                    "text": "在宅医療における訪問頻度の目安：安定期の患者は月2回の定期訪問が基本となる。状態変化時や急性増悪時には週1〜2回に増頻する。終末期（看取り期）には連日訪問も検討する。訪問看護は医師の指示書に基づき、週3回を上限として介護保険で提供される。特別訪問看護指示書が交付された場合は、14日間に限り毎日の訪問が可能となる。",
+                    "token_count": 160,
+                },
+                {
+                    "text": "在宅介護制度の概要：介護保険制度は要支援1〜2、要介護1〜5の7段階で区分される。居宅サービスには訪問介護、訪問看護、訪問リハビリテーション、通所介護（デイサービス）、短期入所（ショートステイ）がある。地域密着型サービスとして小規模多機能型居宅介護、定期巡回・随時対応型訪問介護看護がある。ケアマネージャーがケアプランを作成し、サービス担当者会議で多職種が連携する。",
+                    "token_count": 175,
+                },
+                {
+                    "text": "在宅医療の緊急対応体制：24時間対応の在宅療養支援診療所（機能強化型）では、常勤医師3名以上、過去1年間の緊急往診実績10件以上が要件となる。夜間・休日の電話対応（トリアージ）を行い、緊急度に応じて電話指導、翌日訪問、緊急往診の判断を行う。患者・家族には事前に緊急連絡先と対応手順を説明し、急変時のアクションカードを配布しておくことが推奨される。",
+                    "token_count": 170,
+                },
+            ],
+        },
+        {
+            "title": "臨床推論プロセス",
+            "category": "clinical",
+            "source": "臨床推論教育マニュアル",
+            "status": "indexed",
+            "total_chunks": 2,
+            "agent_bindings": ["intake", "context", "alert"],
+            "created_at": now,
+            "updated_at": now,
+            "chunks": [
+                {
+                    "text": "臨床推論の基本ステップ：(1) 情報収集 - 主訴、現病歴、既往歴、身体所見、検査データを系統的に収集する。(2) 問題リスト作成 - 収集した情報から活動的問題（active problems）を抽出し優先順位をつける。(3) 鑑別診断の生成 - 各問題に対して可能性のある疾患・状態を列挙する。解剖学的アプローチ、病態生理学的アプローチ、頻度順アプローチを使い分ける。(4) 仮説の検証 - 追加の問診・検査で鑑別を絞り込む。",
+                    "token_count": 195,
+                },
+                {
+                    "text": "在宅患者における鑑別診断の特徴：高齢在宅患者では、非典型的な症状提示が多い。発熱なき感染症、無痛性心筋梗塞、せん妄による認知症様症状などに注意する。多疾患併存（マルチモビディティ）が一般的であり、ポリファーマシーによる薬剤性の症状も常に鑑別に含める。Red Flags（見逃してはならない危険な徴候）として、意識レベル変化、急激な体重変化、持続する疼痛、繰り返す転倒、新規の嚥下障害を評価する。",
+                    "token_count": 190,
+                },
+            ],
+        },
+    ]
+
+    created_ids = []
+    for doc_seed in seed_documents:
+        chunks_data = doc_seed.pop("chunks")
+        doc_ref = knowledge_col.document()
+        doc_ref.set(doc_seed)
+
+        # Write chunks subcollection
+        chunks_col = doc_ref.collection("chunks")
+        for i, chunk in enumerate(chunks_data):
+            chunks_col.document(f"chunk_{i:04d}").set({
+                "chunk_index": i,
+                "text": chunk["text"],
+                "token_count": chunk["token_count"],
+                "embedding": [],
+                "category": doc_seed["category"],
+                "source": doc_seed["source"],
+                "doc_id": doc_ref.id,
+            })
+
+        created_ids.append({"id": doc_ref.id, "title": doc_seed["title"]})
+
+    return {
+        "success": True,
+        "message": f"Seeded {len(created_ids)} knowledge documents",
+        "documents": created_ids,
+    }
 
 
 @router.get("/categories")

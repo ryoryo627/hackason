@@ -131,10 +131,14 @@ class AlertAgent(BaseAgent):
         try:
             response = await self.generate(prompt, json_mode=True)
             result = json.loads(response)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
+            print(
+                f"[ERROR] AlertAgent JSON parse failed for patient={patient_id}: "
+                f"{e}; response[:500]={response[:500]!r}"
+            )
             return {
                 "success": False,
-                "error": "アラート分析に失敗しました",
+                "error": f"アラート分析のJSON解析に失敗: {e}",
                 "alerts": [],
             }
 
@@ -168,6 +172,7 @@ class AlertAgent(BaseAgent):
         self,
         org_id: str,
         knowledge_chunks: list[dict[str, Any]] | None = None,
+        lookback_days: int = 7,
     ) -> dict[str, Any]:
         """
         Scan all patients for alerts (morning scan).
@@ -175,6 +180,7 @@ class AlertAgent(BaseAgent):
         Args:
             org_id: Organization ID
             knowledge_chunks: RAG knowledge chunks (optional)
+            lookback_days: How many days back to check for reports (default 7)
 
         Returns:
             dict with scan results
@@ -197,13 +203,14 @@ class AlertAgent(BaseAgent):
 
             results["scanned"] += 1
 
-            # Check for recent reports (past 24 hours)
-            one_day_ago = datetime.now(timezone.utc) - timedelta(days=1)
+            # Check for recent reports within lookback window
+            since = datetime.now(timezone.utc) - timedelta(days=lookback_days)
             recent_reports = await FirestoreService.list_reports(
-                patient_id, limit=10, since=one_day_ago
+                patient_id, limit=10, since=since
             )
 
             if not recent_reports:
+                print(f"[INFO] AlertAgent: patient={patient_id} has no reports in past {lookback_days}d, skipping")
                 results["unchanged"] += 1
                 continue
 
@@ -213,6 +220,13 @@ class AlertAgent(BaseAgent):
                 new_report=recent_reports[0] if recent_reports else None,
                 knowledge_chunks=knowledge_chunks,
             )
+
+            if not alert_result.get("success"):
+                print(
+                    f"[WARN] AlertAgent: scan failed for patient={patient_id}: "
+                    f"{alert_result.get('error')}"
+                )
+                continue
 
             for alert in alert_result.get("alerts", []):
                 severity = alert.get("severity", "medium").lower()

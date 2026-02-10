@@ -260,6 +260,7 @@ from api import (
     patients_router,
     settings_router,
     setup_router,
+    users_router,
 )
 
 app.include_router(dashboard_router, prefix="/api/dashboard", tags=["dashboard"])
@@ -268,6 +269,7 @@ app.include_router(setup_router, prefix="/api/setup", tags=["setup"])
 app.include_router(settings_router, prefix="/api/settings", tags=["settings"])
 app.include_router(alerts_router, prefix="/api/alerts", tags=["alerts"])
 app.include_router(knowledge_router, prefix="/api/knowledge", tags=["knowledge"])
+app.include_router(users_router, prefix="/api/users", tags=["users"])
 
 
 @app.exception_handler(Exception)

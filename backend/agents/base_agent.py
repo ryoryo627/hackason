@@ -4,6 +4,7 @@ Base Agent - Foundation for all ADK agents in HomeCare AI.
 Provides common functionality for Gemini API integration and BPS processing.
 """
 
+import re
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -181,7 +182,24 @@ class BaseAgent(ABC):
         if hasattr(response, "thought_signatures"):
             self._thought_signatures = response.thought_signatures
 
-        return response.text or ""
+        text = response.text or ""
+        if json_mode:
+            text = self._extract_json_text(text)
+        return text
+
+    @staticmethod
+    def _extract_json_text(text: str) -> str:
+        """Extract JSON from response that may be wrapped in markdown code fences."""
+        stripped = text.strip()
+        # Remove markdown code fences (```json ... ``` or ``` ... ```)
+        fence_match = re.search(r"```(?:json)?\s*\n?(.*?)```", stripped, re.DOTALL)
+        if fence_match:
+            stripped = fence_match.group(1).strip()
+        # Find first JSON object or array
+        for i, ch in enumerate(stripped):
+            if ch in ("{", "["):
+                return stripped[i:]
+        return stripped
 
     def _get_thinking_budget(self) -> int:
         """Get thinking budget based on thinking level."""

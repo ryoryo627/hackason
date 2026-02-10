@@ -2,10 +2,14 @@
 Alerts API - Alert management endpoints.
 """
 
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
+from agents.base_agent import BaseAgent
+from agents.alert_agent import AlertAgent
+from agents.root_agent import RootAgent
 from services.firestore_service import FirestoreService
 
 router = APIRouter()
@@ -122,4 +126,65 @@ async def get_alert_stats(
         "total_unacknowledged": len(unack_alerts),
         "by_severity": severity_counts,
         "recent_alerts": unack_alerts[:5],
+    }
+
+
+@router.post("/scan/{patient_id}")
+async def scan_patient_alerts(
+    patient_id: str,
+    org_id: str = Query(..., description="Organization ID"),
+) -> dict[str, Any]:
+    """
+    Run on-demand alert scan for a specific patient.
+    """
+    # Verify patient exists
+    patient = await FirestoreService.get_patient(patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="患者が見つかりません")
+
+    # Initialize AlertAgent with org-specific prompts
+    custom = await BaseAgent.get_agent_prompts(org_id)
+    shared = custom.get("shared_prompt")
+    agent_prompts = custom.get("agent_prompts", {})
+    alert_agent = AlertAgent(
+        system_prompt=agent_prompts.get("alert"), shared_prompt=shared
+    )
+
+    # Get latest report as new_report
+    since = datetime.now(timezone.utc) - timedelta(days=7)
+    reports = await FirestoreService.list_reports(patient_id, limit=1, since=since)
+    new_report = reports[0] if reports else None
+
+    result = await alert_agent.process(
+        patient_id,
+        new_report=new_report,
+    )
+
+    return {
+        "success": result.get("success", False),
+        "patient_id": patient_id,
+        "patient_name": result.get("patient_name", patient.get("name", "不明")),
+        "alerts": result.get("alerts", []),
+        "error": result.get("error"),
+    }
+
+
+@router.post("/scan")
+async def scan_all_alerts(
+    org_id: str = Query(..., description="Organization ID"),
+    lookback_days: int = Query(7, description="Days to look back for reports"),
+) -> dict[str, Any]:
+    """
+    Run on-demand alert scan for all patients (manual morning scan).
+    Does not require Cloud Scheduler.
+    """
+    root_agent = RootAgent()
+    result = await root_agent.run_morning_scan(
+        org_id, lookback_days=lookback_days
+    )
+
+    return {
+        "success": result.get("success", False),
+        "report": result.get("report", ""),
+        "scan_results": result.get("scan_results", {}),
     }

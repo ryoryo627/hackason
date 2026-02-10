@@ -43,6 +43,7 @@ include = [
     "*.py",
     "agents/",
     "api/",
+    "auth/",
     "services/",
     "models/",
     "slack/",

@@ -99,6 +99,21 @@ class FirestoreService:
         await cls.create_user(uid, user_data)
         return {**user_data, "uid": uid}
 
+    @classmethod
+    async def list_users_by_org(cls, org_id: str) -> list[dict[str, Any]]:
+        """List all users belonging to an organization, sorted by created_at descending."""
+        db = cls.get_client()
+        docs = db.collection("users").where("organization_id", "==", org_id).stream()
+        results = [{"uid": doc.id, **doc.to_dict()} for doc in docs]
+        results.sort(key=lambda x: x.get("created_at", "") or "", reverse=True)
+        return results
+
+    @classmethod
+    async def delete_user(cls, uid: str) -> None:
+        """Delete a user document from Firestore."""
+        db = cls.get_client()
+        db.collection("users").document(uid).delete()
+
     # === Organizations ===
 
     @classmethod
@@ -498,7 +513,11 @@ class FirestoreService:
     ) -> list[dict[str, Any]]:
         """List knowledge documents."""
         db = cls.get_client()
-        query = db.collection("knowledge_documents").where("org_id", "==", org_id)
+        query = (
+            db.collection("organizations")
+            .document(org_id)
+            .collection("knowledge")
+        )
 
         if category:
             query = query.where("category", "==", category)
@@ -517,13 +536,18 @@ class FirestoreService:
         return results[:limit]
 
     @classmethod
-    async def create_knowledge_document(cls, data: dict[str, Any]) -> str:
+    async def create_knowledge_document(cls, org_id: str, data: dict[str, Any]) -> str:
         """Create a new knowledge document."""
         db = cls.get_client()
         data["created_at"] = firestore.SERVER_TIMESTAMP
         data["updated_at"] = firestore.SERVER_TIMESTAMP
         data["status"] = "uploading"
-        doc_ref = db.collection("knowledge_documents").document()
+        doc_ref = (
+            db.collection("organizations")
+            .document(org_id)
+            .collection("knowledge")
+            .document()
+        )
         doc_ref.set(data)
         return doc_ref.id
 
