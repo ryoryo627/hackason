@@ -42,6 +42,25 @@ htmlcov/
 prod-login.png
 shadow-fix-login.png
 
+# Credentials & Secrets
+credentials.json
+service-account-*.json
+*-credentials.json
+*.key
+
+# Local deploy scripts (contain credentials)
+frontend/deploy.sh
+backend/deploy.sh
+deploy*.sh
+
+# Environment files (comprehensive)
+.env.production
+.env.production.local
+.env.staging
+
+# Firebase
+.firebaserc
+
 # Sensitive docs (contains API keys)
 docs/setup-guide.md
 google-cloud-cli-darwin-arm.tar.gz

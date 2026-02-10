@@ -7,7 +7,7 @@ Cloud Shellは使わない。ローカルMacから直接デプロイする。
 ### フロントエンドデプロイ
 ```bash
 cd /Users/kyoku/Dropbox/Mac/Downloads/next_app/hackason/frontend
-gcloud builds submit --config=cloudbuild.yaml
+./deploy.sh
 ```
 
 ### バックエンドデプロイ
@@ -22,11 +22,11 @@ gcloud run deploy homecare-bot --source=. --region=asia-northeast1
 - Frontend Service: `homecare-admin`
 - Backend Service: `homecare-bot`
 
-## Firebase設定（cloudbuild.yamlにハードコード済み）
-- API Key: `REDACTED_FIREBASE_API_KEY`
-- Auth Domain: `aihomecare-486506.firebaseapp.com`
-- Project ID: `aihomecare-486506`
+## Firebase設定
+- 実際の値は `frontend/.env.local` を参照（gitにはコミットしない）
+- デプロイ時は `frontend/deploy.sh` を使用
 
 ## 注意事項
-- NEXT_PUBLIC_* 環境変数はビルド時に埋め込む必要がある（cloudbuild.yamlで対応済み）
-- Cloud Shellではなくローカルから `gcloud builds submit` を使う
+- NEXT_PUBLIC_* 環境変数はビルド時に埋め込む必要がある（deploy.shで対応済み）
+- Cloud Shellではなくローカルから `deploy.sh` を使う
+- cloudbuild.yaml にはクレデンシャルをハードコードしない
