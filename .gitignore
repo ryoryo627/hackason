@@ -42,6 +42,19 @@ htmlcov/
 prod-login.png
 shadow-fix-login.png
 
+# Serena (AI development tool)
+.serena/
+
+# Firebase local config
+.firebaserc
+firebase.json
+
+# Scripts (local utility)
+scripts/
+
+# CLAUDE.md (internal dev instructions)
+CLAUDE.md
+
 # Credentials & Secrets
 credentials.json
 service-account-*.json
