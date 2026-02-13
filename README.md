@@ -27,10 +27,8 @@
 <p align="center">
   <a href="#">Admin UI デモ（スクリーンショット参照）</a>
   &nbsp;|&nbsp;
-  <!-- TODO: Zenn記事URL -->
   <a href="#">解説記事（Zenn）</a>
   &nbsp;|&nbsp;
-  <!-- TODO: デモ動画URL -->
   <a href="#">デモ動画</a>
 </p>
 
@@ -88,7 +86,7 @@ Gemini APIを活用した独自のマルチエージェントシステムが、�
     </td>
     <td align="center" width="33%">
       <h3>部門単位で設定不要の導入</h3>
-      <p>Slackの無料プランで始められるため、病院全体の意思決定が不要。Admin UIから患者を登録するだけで、Slackチャンネル作成からBot設定、メンバー招待まで全自動で完了する。既存カルテと共存しながら即日運用を開始できる</p>
+      <p>Slackの無料プランで始められるため、病院全体の意思決定が不要。初回のSlack連携設定後は、Admin UIから患者を登録するだけでSlackチャンネル作成・メンバー招待まで自動で完了する。既存カルテと共存しながら即日運用を開始できる</p>
     </td>
     <td align="center" width="33%">
       <h3>GCPネイティブ構成</h3>
@@ -103,7 +101,6 @@ Gemini APIを活用した独自のマルチエージェントシステムが、�
 
 Admin UI: デプロイ済み（URLは非公開）
 
-<!-- TODO: デモ動画URL -->
 <!-- デモ動画: [YouTube / Loom リンク](#) -->
 
 <details>
@@ -247,7 +244,7 @@ graph LR
 
 | レイヤー | 技術 | バージョン |
 |---------|------|-----------|
-| AIエージェント | 独自マルチエージェントフレームワーク (google-genai) | — |
+| AIエージェント | 独自マルチエージェントフレームワーク (google-genai)（6エージェントクラス） | — |
 | LLM | Gemini 3 Flash Preview (Gemini API) | — |
 | RAG Embedding | gemini-embedding-001 | 768次元 |
 | ベクトル検索 | Firestore + numpy cosine similarity | — |
@@ -295,6 +292,7 @@ graph LR
 - [x] RAGを用いた臨床推論（ガイドライン・プロトコル参照）
 - [x] Thinking Level制御による推論深度の動的調整
 - [x] Admin UIからコードデプロイなしでAI指示を変更可能
+- [x] アラートパターンに基づくリスクレベル自動エスカレーション/ディエスカレーション
 
 ---
 
@@ -317,13 +315,13 @@ cd hackason
 # 2. バックエンド起動
 cd backend
 pip install -e ".[dev]"
-cp .env.example .env  # 環境変数を設定
+cp .env.example .env  # .envを編集してGCPプロジェクトID等を設定
 uvicorn main:app --reload --port 8080
 
 # 3. フロントエンド起動（別ターミナル）
 cd frontend
 npm install
-cp .env.example .env.local  # 環境変数を設定
+cp .env.example .env.local  # .env.localを編集してFirebase設定とAPIURLを設定
 npm run dev
 ```
 
@@ -375,7 +373,7 @@ hackason/
 │   ├── agents/                 # マルチエージェント (Gemini API)
 │   │   ├── root_agent.py       #   ルーティング
 │   │   ├── intake_agent.py     #   BPS構造化
-│   │   ├── context_agent.py    #   文脈参照回答
+│   │   ├── context_agent.py    #   文脈参照回答（SaveAgent含む）
 │   │   ├── alert_agent.py      #   異変検知
 │   │   ├── summary_agent.py    #   経過サマリー
 │   │   └── base_agent.py       #   共通基底
@@ -390,10 +388,12 @@ hackason/
 │   ├── auth/                   # Firebase認証
 │   │   └── dependencies.py     #   認証依存注入
 │   ├── models/                 # データモデル
-│   ├── services/               # ビジネスロジック
+│   ├── services/               # ビジネスロジック（5サービス）
 │   │   ├── firestore_service.py
 │   │   ├── rag_service.py
-│   │   └── slack_service.py
+│   │   ├── slack_service.py
+│   │   ├── risk_service.py
+│   │   └── storage_service.py  #   Cloud Storage操作
 │   ├── slack/                  # Slack連携
 │   ├── cron/                   # 定時ジョブ
 │   ├── main.py                 # FastAPI エントリポイント
@@ -454,7 +454,7 @@ hackason/
 |---------|------|
 | 部門単位の機動的導入 | 既存の電子カルテは5〜6年のリース契約と病院全体の意思決定を要する。本システムはSlack無料プランで始められるため、在宅医療チーム単独で即日試験運用でき、既存カルテとも共存できる |
 | 現場スタッフの学習コスト | 専用フォームや入力規則の習得が不要。自然言語でSlackに投稿するだけで、構造化・分析はAIが処理する。Admin UIの教育対象も管理者1〜2名に限定される |
-| 患者セットアップの自動化 | 患者登録からSlackチャンネル作成、Bot設定、メンバー招待まで全自動。運用開始までの手間を最小限に抑えた |
+| 患者セットアップの自動化 | 初回のSlack連携設定後は、患者登録からSlackチャンネル作成・メンバー招待まで自動で完了。運用開始までの手間を最小限に抑えた |
 | デプロイ済みデモ環境 | Cloud Runにデプロイ済みのAdmin UIで実際の動作を確認できる |
 
 ### 実装品質と拡張性

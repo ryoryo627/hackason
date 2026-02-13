@@ -1,6 +1,6 @@
 # API設計書
 
-> ✅ **実装状況**: 全67エンドポイント実装済み（6ルーター + 直接ルート）
+> ✅ **実装状況**: 全エンドポイント実装済み（7ルーター + 直接ルート）
 
 ベースURL: `https://homecare-bot-xxx.run.app`（homecare-botサービスで配信）
 
@@ -162,7 +162,7 @@ CSVインポートによる一括患者登録。
 一括メンバー割当の進捗取得。
 
 ### GET /api/patients/{patient_id}
-患者詳細取得（報告・アラート・コンテキスト含む）。
+患者詳細取得（報告・アラート・コンテキスト含む）。レスポンスに `risk_history`（直近5件）を含む。
 
 ### GET /api/patients/{patient_id}/reports
 報告一覧取得（タイムライン用、acknowledgedフィルタ付き）。
@@ -179,11 +179,45 @@ BPSサマリー・トレンド・推奨事項取得。
 ### DELETE /api/patients/{patient_id}
 患者アーカイブ（ソフトデリート + Slackチャンネルアーカイブ）。
 
+### GET /api/patients/{patient_id}/risk-history
+リスクレベル変更履歴の取得。
+
+```
+Query Parameters:
+  limit: number (default: 20)
+
+Response 200:
+{
+  "patient_id": "pat_xxx",
+  "current_risk_level": "high",
+  "risk_level_source": "auto",
+  "history": [
+    {
+      "id": "rh_xxx",
+      "previous_level": "medium",
+      "new_level": "high",
+      "source": "auto",
+      "reason": "未確認の緊急アラートが1件あります",
+      "trigger": "alert_created",
+      "alert_snapshot": { "high": 1, "medium": 0, "low": 0 },
+      "created_by": "system",
+      "created_at": "2026-02-05T14:30:00Z"
+    }
+  ]
+}
+```
+
 ### POST /api/patients/{patient_id}/alerts/{alert_id}/acknowledge
 アラート確認。
 
 ### POST /api/patients/{patient_id}/reports/{report_id}/acknowledge
 報告確認（Slackリアクション追加）。
+
+### GET /api/patients/{patient_id}/files
+患者に紐づくファイル一覧取得（GCS参照）。
+
+### GET /api/patients/{patient_id}/files/{file_id}/url
+ファイルのダウンロードURL取得（Signed URL）。
 
 ---
 
@@ -246,6 +280,12 @@ Response 200:
 
 ### GET /api/alerts/stats/summary
 アラート統計（緊急度別カウント）。
+
+### POST /api/alerts/scan/{patient_id}
+指定患者のアラートスキャン実行（即時検知）。
+
+### POST /api/alerts/scan
+全患者のアラートスキャン実行（朝8時定時トリガーと同等）。
 
 ---
 
@@ -363,12 +403,84 @@ Response:
 ### POST /api/knowledge/search
 ナレッジ検索（✅ gemini-embedding-001 + cosine similarity実装済み。APIキー未設定時はテキストマッチにフォールバック）。
 
+### GET /api/knowledge/documents/{document_id}/download
+ドキュメントファイルのダウンロードURL取得（Signed URL）。
+
+### POST /api/knowledge/seed
+デモ用ナレッジデータの一括登録。
+
 ### GET /api/knowledge/categories
 利用可能なナレッジカテゴリ一覧取得。
 
 ---
 
-## 7. Slack Bot エンドポイント（直接ルート）
+## 7. ユーザー管理 API（/api/users）
+
+### GET /api/users
+ユーザー一覧取得。
+
+```
+Query Parameters:
+  org_id: string (required)
+
+Response 200:
+{
+  "users": [
+    {
+      "uid": "firebase-uid",
+      "email": "admin@clinic.jp",
+      "display_name": "管理者",
+      "role": "admin",
+      "org_id": "org_xxx",
+      "created_at": "2026-02-01T00:00:00Z"
+    }
+  ]
+}
+```
+
+### POST /api/users
+ユーザー招待・追加。
+
+```
+Request:
+{
+  "email": "nurse@clinic.jp",
+  "display_name": "看護師A",
+  "role": "viewer",
+  "org_id": "org_xxx"
+}
+
+Response 201:
+{
+  "uid": "firebase-uid",
+  "email": "nurse@clinic.jp",
+  "display_name": "看護師A",
+  "role": "viewer"
+}
+```
+
+### PUT /api/users/{uid}/role
+ユーザーロール変更。
+
+```
+Request:
+{
+  "role": "doctor"
+}
+
+Response 200:
+{
+  "uid": "firebase-uid",
+  "role": "doctor"
+}
+```
+
+### DELETE /api/users/{uid}
+ユーザー削除（組織からの除外）。
+
+---
+
+## 8. Slack Bot エンドポイント（直接ルート）
 
 ### POST /slack/events
 Slack Events API受信。Slack署名検証で保護。

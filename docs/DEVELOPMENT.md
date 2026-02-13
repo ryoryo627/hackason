@@ -49,26 +49,29 @@ hackason/
 │   ├── Dockerfile
 │   ├── main.py                  # FastAPI エントリポイント
 │   ├── config.py                # 環境変数・Firestore設定読み込み
-│   ├── agents/                  # ADK エージェント群
-│   │   ├── base_agent.py        # 共通基底クラス
+│   ├── agents/                  # マルチエージェント群
+│   │   ├── base_agent.py        # 共通基底クラス（Gemini連携・プロンプト管理）
 │   │   ├── root_agent.py        # オーケストレーター
 │   │   ├── intake_agent.py      # テキスト→BPS構造化
-│   │   ├── context_agent.py     # コンテキスト参照・BPS分析回答
+│   │   ├── context_agent.py     # コンテキスト参照・BPS分析回答（SaveAgent含む）
 │   │   ├── alert_agent.py       # 横断分析・異変パターン検知
 │   │   └── summary_agent.py     # BPS経過サマリー生成
 │   ├── slack/                   # Slack Bot処理
 │   │   └── verify.py            # 署名検証
-│   ├── api/                     # REST APIルーター
+│   ├── api/                     # REST APIルーター（7ルーター）
 │   │   ├── dashboard.py         # ダッシュボード統計・フィード
 │   │   ├── patients.py          # 患者CRUD・Slack連携
 │   │   ├── alerts.py            # アラート管理・統計
 │   │   ├── setup.py             # セットアップ・ユーザー・設定
 │   │   ├── settings.py          # サービス設定・マスタ管理
-│   │   └── knowledge.py         # ナレッジベースCRUD・検索
-│   ├── services/                # ビジネスロジック
+│   │   ├── knowledge.py         # ナレッジベースCRUD・検索
+│   │   └── users.py             # ユーザー管理・ロール設定
+│   ├── services/                # ビジネスロジック（5サービス）
 │   │   ├── firestore_service.py # Firestore CRUD操作
 │   │   ├── slack_service.py     # Slack API操作
-│   │   └── rag_service.py       # RAGパイプライン
+│   │   ├── rag_service.py       # RAGパイプライン
+│   │   ├── risk_service.py      # リスクレベル自動計算
+│   │   └── storage_service.py   # Cloud Storage ファイル操作
 │   └── models/                  # Pydanticモデル
 │       ├── patient.py
 │       ├── report.py
@@ -146,5 +149,39 @@ npm run start     # 本番サーバー起動
 - 各エージェントにどのカテゴリをバインドするかをAdmin UIで設定可能
 - Embedding: gemini-embedding-001（768次元）、Vector Store: Firestore + cosine similarity
 
+### リスクレベル自動管理
+- **エスカレーション**: 未確認アラートの件数と重大度に基づくルールベースの自動計算（`RiskService`）
+- **ディエスカレーション**: 全アラート確認済み + 一定期間経過で段階的に低下。手動変更時は自動ディエスカレーション停止
+- **変更履歴**: `patients/{id}/risk_history` サブコレクションに全変更を記録
+- **トリガー**: アラート生成後、アラート確認後、定時スキャン後に自動実行
+
 ### 設定管理（Firestore service_configs）
 全APIキー・トークンはFirestoreの `service_configs` コレクションに組織単位で保存。ブラウザのlocalStorage/sessionStorageには一切保持しない。
+
+## トラブルシューティング
+
+### ポート競合
+```bash
+# バックエンドのポート8080が使用中の場合
+lsof -i :8080
+# フロントエンドのポート3000が使用中の場合
+lsof -i :3000
+```
+
+### Firebase認証エラー
+- `.env.local` の `NEXT_PUBLIC_FIREBASE_*` 変数がFirebaseコンソールの設定と一致しているか確認
+- Firebase Authenticationでメール/パスワード認証が有効になっているか確認
+
+### CORSエラー
+- バックエンドの `ADMIN_UI_URL` 環境変数がフロントエンドのURL（`http://localhost:3000`）と一致しているか確認
+- Cloud Run環境では `ADMIN_UI_URL` にデプロイ先URLを設定
+
+### Slack連携エラー
+- Bot Token（`xoxb-`）とSigning Secretが正しく設定されているか確認
+- Slack AppのEvent SubscriptionsのRequest URLがバックエンドの `/slack/events` を指しているか確認
+
+## 関連ドキュメント
+
+- [API設計書](api-design.md) — 全REST APIエンドポイント仕様
+- [AIエージェント設計書](agent-design.md) — エージェント構成・RAG設計・リスクレベル自動管理ルール
+- [データモデル設計書](data-model.md) — Firestoreコレクション設計

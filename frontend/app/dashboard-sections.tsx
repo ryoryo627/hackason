@@ -183,7 +183,7 @@ export function EnhancedStatCards({
       title: "総患者数",
       value: stats?.total_patients ?? 0,
       icon: Users,
-      color: "bg-accent-50 text-accent-600",
+      color: "bg-bg-tertiary text-text-secondary",
       detail: totalPatients > 0 ? (
         <RiskDistributionMiniBar counts={riskCounts} total={totalPatients} />
       ) : null,
@@ -192,14 +192,14 @@ export function EnhancedStatCards({
       title: "高リスク患者",
       value: stats?.high_risk_patients ?? 0,
       icon: AlertTriangle,
-      color: "bg-danger-subtle text-danger",
+      color: "bg-bg-tertiary text-text-secondary",
       detail: null,
     },
     {
       title: "未確認アラート",
       value: stats?.unacknowledged_alerts ?? 0,
       icon: AlertTriangle,
-      color: "bg-warning-subtle text-warning",
+      color: "bg-bg-tertiary text-text-secondary",
       detail:
         (bySeverity.high > 0 || bySeverity.medium > 0) ? (
           <div className="flex gap-1.5 mt-1">
@@ -216,7 +216,7 @@ export function EnhancedStatCards({
       title: "24時間の報告数",
       value: stats?.recent_reports_24h ?? 0,
       icon: FileText,
-      color: "bg-success-subtle text-success",
+      color: "bg-bg-tertiary text-text-secondary",
       detail: null,
     },
   ];
@@ -227,8 +227,8 @@ export function EnhancedStatCards({
         <div key={card.title} className="animate-slide-up">
           <Card>
             <div className="flex items-center gap-4">
-              <div className={`p-3 rounded-lg ${card.color}`}>
-                <card.icon className="w-6 h-6" />
+              <div className={`p-2.5 rounded-lg ${card.color}`}>
+                <card.icon className="w-5 h-5" />
               </div>
               <div className="min-w-0">
                 <p className="text-sm text-text-secondary">{card.title}</p>
@@ -557,7 +557,7 @@ export function PatientRiskPanel() {
               <button
                 key={patient.id}
                 onClick={() => router.push(`/patients/${patient.id}`)}
-                className="flex items-center justify-between w-full bg-bg-secondary hover:bg-bg-tertiary rounded-md px-3 py-2 text-left transition-colors"
+                className="group flex items-center justify-between w-full bg-bg-secondary hover:bg-bg-tertiary rounded-md px-3 py-2 text-left transition-colors"
               >
                 <div className="min-w-0">
                   <span className="text-sm font-medium text-text-primary">
@@ -568,7 +568,7 @@ export function PatientRiskPanel() {
                     {patient.primary_diagnosis ? ` ${patient.primary_diagnosis}` : ""}
                   </span>
                 </div>
-                <ChevronRight className="w-4 h-4 text-text-tertiary shrink-0" />
+                <ChevronRight className="w-4 h-4 text-text-tertiary shrink-0 transition-transform group-hover:translate-x-0.5" />
               </button>
             ))}
           </div>
@@ -640,7 +640,7 @@ export function NightEventsSummary() {
     return (
       <Card className="mb-6">
         <div className="flex items-center gap-2 mb-3">
-          <Moon className="w-5 h-5 text-accent-500" />
+          <Moon className="w-4 h-4 text-text-secondary" />
           <h3 className="font-semibold text-text-primary">夜間イベントサマリー</h3>
         </div>
         <SkeletonText lines={4} />
@@ -656,7 +656,7 @@ export function NightEventsSummary() {
     <Card className="mb-6">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Moon className="w-5 h-5 text-accent-500" />
+          <Moon className="w-4 h-4 text-text-secondary" />
           <h3 className="font-semibold text-text-primary">夜間イベントサマリー</h3>
         </div>
         <span className="text-xs text-text-tertiary">

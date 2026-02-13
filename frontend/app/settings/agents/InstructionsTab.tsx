@@ -38,8 +38,8 @@ const AGENTS: AgentMeta[] = [
     name: "報告の整理",
     label: "Intake Agent",
     icon: ClipboardPen,
-    iconBg: "bg-accent-50",
-    iconColor: "text-accent-600",
+    iconBg: "bg-bg-tertiary",
+    iconColor: "text-text-secondary",
     description: "スタッフからの報告をBio/Psycho/Socialに分類します",
     helpText:
       "Slackのスレッドに投稿された報告を読み取り、身体・心理・社会の3つの観点で自動的に整理します。例：「体温37.5℃、食欲低下」→ Bio（身体面）に分類",
@@ -49,8 +49,8 @@ const AGENTS: AgentMeta[] = [
     name: "質問への回答",
     label: "Context Agent",
     icon: MessageSquareText,
-    iconBg: "bg-success-light",
-    iconColor: "text-success",
+    iconBg: "bg-bg-tertiary",
+    iconColor: "text-text-secondary",
     description: "@botで質問されたときの回答方法を設定します",
     helpText:
       "チャンネルで @bot と呼びかけると、過去の報告を参照して質問に回答します。例：「@bot 先週からの体温の推移は？」→ 過去データを検索して回答",
@@ -60,8 +60,8 @@ const AGENTS: AgentMeta[] = [
     name: "異変の検知",
     label: "Alert Agent",
     icon: ShieldAlert,
-    iconBg: "bg-warning-light",
-    iconColor: "text-warning",
+    iconBg: "bg-bg-tertiary",
+    iconColor: "text-text-secondary",
     description: "報告から異変やリスクを自動検知します",
     helpText:
       "新しい報告が投稿されるたびに、異変やリスクがないか自動でチェックします。例：急な体重減少、服薬の中断、転倒リスクの増加など",
@@ -71,8 +71,8 @@ const AGENTS: AgentMeta[] = [
     name: "経過サマリー",
     label: "Summary Agent",
     icon: FileText,
-    iconBg: "bg-purple-50",
-    iconColor: "text-purple-600",
+    iconBg: "bg-bg-tertiary",
+    iconColor: "text-text-secondary",
     description: "患者の経過をまとめて表示します",
     helpText:
       "@bot でサマリーを依頼すると、Bio/Psycho/Socialの3軸で経過をまとめます。カンファレンスや申し送りの資料作成に活用できます",

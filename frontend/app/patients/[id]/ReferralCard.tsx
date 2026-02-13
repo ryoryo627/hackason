@@ -38,7 +38,7 @@ export function ReferralCard({ patient, inline }: ReferralCardProps) {
         {hasReferral && (
           <div className="pb-3">
             <div className="flex items-center gap-2 mb-1.5">
-              <Building2 className="w-4 h-4 text-accent-500" />
+              <Building2 className="w-4 h-4 text-text-tertiary" />
               <span className="text-xs font-medium text-text-tertiary">
                 紹介元医療機関
               </span>
@@ -66,7 +66,7 @@ export function ReferralCard({ patient, inline }: ReferralCardProps) {
         {hasBackground && (
           <div className={hasReferral ? "py-3" : "pb-3"}>
             <div className="flex items-center gap-2 mb-1.5">
-              <FileText className="w-4 h-4 text-accent-500" />
+              <FileText className="w-4 h-4 text-text-tertiary" />
               <span className="text-xs font-medium text-text-tertiary">
                 経緯
               </span>
@@ -81,7 +81,7 @@ export function ReferralCard({ patient, inline }: ReferralCardProps) {
         {hasKeyPerson && (
           <div className={hasReferral || hasBackground ? "pt-3" : ""}>
             <div className="flex items-center gap-2 mb-1.5">
-              <UserCircle className="w-4 h-4 text-accent-500" />
+              <UserCircle className="w-4 h-4 text-text-tertiary" />
               <span className="text-xs font-medium text-text-tertiary">
                 キーパーソン
               </span>

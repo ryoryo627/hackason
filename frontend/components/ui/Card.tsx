@@ -19,7 +19,7 @@ export function Card({ children, className, padding = "md", interactive = false 
   return (
     <div className={clsx(
       "bg-white rounded-md border border-border transition-all duration-120 ease-in-out",
-      interactive && "cursor-pointer hover:border-border-strong active:bg-bg-secondary",
+      interactive && "cursor-pointer hover:border-border-strong hover:shadow-sm active:bg-bg-secondary",
       !interactive && "hover:border-border-strong",
       paddingStyles[padding],
       className
@@ -39,7 +39,7 @@ export function CardHeader({ title, description, action }: CardHeaderProps) {
   return (
     <div className="flex items-start justify-between mb-4">
       <div>
-        <h3 className="text-lg font-semibold text-text-primary">{title}</h3>
+        <h3 className="text-lg font-semibold text-text-primary leading-tight">{title}</h3>
         {description && <p className="text-sm text-text-secondary mt-1">{description}</p>}
       </div>
       {action && <div>{action}</div>}

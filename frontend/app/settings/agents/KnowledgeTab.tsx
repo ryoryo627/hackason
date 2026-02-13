@@ -240,8 +240,8 @@ export function KnowledgeTab() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card>
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-accent-50 rounded-lg">
-                <FileText className="w-5 h-5 text-accent-600" />
+              <div className="p-2 bg-bg-tertiary rounded-lg">
+                <FileText className="w-5 h-5 text-text-secondary" />
               </div>
               <div>
                 <p className="text-xs text-text-tertiary">ドキュメント</p>
@@ -251,8 +251,8 @@ export function KnowledgeTab() {
           </Card>
           <Card>
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-warning-subtle rounded-lg">
-                <Scissors className="w-5 h-5 text-warning" />
+              <div className="p-2 bg-bg-tertiary rounded-lg">
+                <Scissors className="w-5 h-5 text-text-secondary" />
               </div>
               <div>
                 <p className="text-xs text-text-tertiary">総チャンク</p>
@@ -262,8 +262,8 @@ export function KnowledgeTab() {
           </Card>
           <Card>
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-success-subtle rounded-lg">
-                <Search className="w-5 h-5 text-success" />
+              <div className="p-2 bg-bg-tertiary rounded-lg">
+                <Search className="w-5 h-5 text-text-secondary" />
               </div>
               <div>
                 <p className="text-xs text-text-tertiary">カテゴリ</p>
@@ -273,8 +273,8 @@ export function KnowledgeTab() {
           </Card>
           <Card>
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-accent-50 rounded-lg">
-                <Link2 className="w-5 h-5 text-accent-600" />
+              <div className="p-2 bg-bg-tertiary rounded-lg">
+                <Link2 className="w-5 h-5 text-text-secondary" />
               </div>
               <div>
                 <p className="text-xs text-text-tertiary">エージェント</p>

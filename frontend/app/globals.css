@@ -49,6 +49,11 @@
   --color-danger-subtle: rgba(239, 68, 68, 0.08);
   --color-info-subtle:   rgba(43, 76, 126, 0.06);
 
+  /* Icon semantic aliases */
+  --color-icon-default:   #6B6B6B;
+  --color-icon-muted:     #9B9B9B;
+  --color-icon-subtle-bg: #F5F5F5;
+
   /* Sidebar (light theme) */
   --color-sidebar-bg:     #FAFAFA;
   --color-sidebar-hover:  #F0F0F0;

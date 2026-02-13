@@ -513,11 +513,11 @@ export default function ServiceSettingsPage() {
 
 function StatusIcon({ connected }: { connected: boolean }) {
   return connected ? (
-    <div className="p-2 bg-success-light rounded-md">
+    <div className="p-2 bg-bg-tertiary rounded-md">
       <CheckCircle className="w-5 h-5 text-success" />
     </div>
   ) : (
-    <div className="p-2 bg-danger-light rounded-md">
+    <div className="p-2 bg-bg-tertiary rounded-md">
       <XCircle className="w-5 h-5 text-danger" />
     </div>
   );

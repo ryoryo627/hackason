@@ -104,11 +104,16 @@ Slackを患者ごとの情報集約ハブとし、Google Cloud上のAIエージ�
 - ✅ CSVインポート・一括メンバー割当
 - ✅ 患者削除・エクスポート機能
 
+### Phase 6: リスクレベル自動管理 ✅ 完了
+- ✅ M-20: RiskService — アラートパターンに基づく自動エスカレーション/ディエスカレーション
+- ✅ M-21: risk_history — リスクレベル変更履歴の記録・取得API
+- ✅ M-22: UI — RiskHistoryCard、AIバッジ表示、編集画面の手動変更警告
+
 ---
 
 ## 7. 機能要件サマリー
 
-### 7.1 Admin UI（14ルート）
+### 7.1 Admin UI（15ルート）
 
 | 画面 | 説明 | 詳細参照 |
 |------|------|---------|
@@ -126,6 +131,7 @@ Slackを患者ごとの情報集約ハブとし、Google Cloud上のAIエージ�
 | API & サービス設定 | 接続状況・サービス設定・使用量 | ui-ux-design.md |
 | マスタ管理 | 事業所・地区・タグのCRUD | ui-ux-design.md |
 | 組織設定 | 組織情報・メンバー管理・ロール設定 | ui-ux-design.md |
+| ユーザー管理 | ユーザー一覧・招待・ロール変更・削除 | ui-ux-design.md |
 
 ### 7.2 Slack Bot
 
@@ -135,7 +141,7 @@ Slackを患者ごとの情報集約ハブとし、Google Cloud上のAIエージ�
 
 ### 7.3 AIエージェント（ADK）
 
-- BaseAgent共通基底 + 4サブエージェント: Intake / Context / Alert / Summary
+- BaseAgent共通基底 + 5サブエージェント: Intake / Context（SaveAgent含む） / Alert / Summary
 - RAGナレッジベース: 8カテゴリ、エージェント別バインド
 - 詳細: `agent-design.md`
 
@@ -214,6 +220,6 @@ Slackを患者ごとの情報集約ハブとし、Google Cloud上のAIエージ�
 |---------|---------|
 | 課題の新規性 | 多職種連携×AI臨床推論は国内外で未開拓 |
 | 解決策の有効性 | BPS構造化、マルチエージェント、RAGナレッジ、リアルタイムアラート |
-| 技術的実装 | ADK + Gemini + Cloud Run + Firestore + Vertex AI Vector Search |
+| 技術的実装 | Gemini API + Cloud Run + Firestore + Firestore Embedding + cosine similarity |
 | 拡張性 | マルチエージェント設計、Firestoreスキーマレス、RAGカテゴリ拡張 |
 | UX・実用性 | ゼロコンフィグ運用、100名対応検索、3形式エクスポート |

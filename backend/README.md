@@ -28,16 +28,32 @@ uvicorn main:app --reload --port 8080
 
 ## 環境変数
 
+`.env.example` を `.env` にコピーして値を設定:
+
 ```bash
+# GCP
 GOOGLE_CLOUD_PROJECT=your-gcp-project-id
 GCP_REGION=asia-northeast1
 FIRESTORE_DATABASE_ID=(default)
+
+# Cloud Storage
 GCS_BUCKET_NAME=your-bucket-name
 GCS_KNOWLEDGE_BUCKET=your-knowledge-bucket-name
+
+# AI
 EMBEDDING_MODEL=gemini-embedding-001
 GEMINI_MODEL=gemini-3-flash-preview
+
+# CORS
 ADMIN_UI_URL=http://localhost:3000
+
+# Server
+HOST=0.0.0.0
+PORT=8080
+DEBUG=true
 ```
+
+> **Note**: Slack Bot Token、Signing Secret、Gemini API KeyはFirestoreの `service_configs` コレクションに保存され、Admin UIのセットアップウィザードから設定します。
 
 ## API エンドポイント
 
@@ -47,13 +63,17 @@ ADMIN_UI_URL=http://localhost:3000
 ### Cron Jobs
 - `POST /cron/morning-scan` - 朝8時定時スキャン
 
-### Admin API
-- `GET /api/health` - ヘルスチェック
-- `GET /api/patients` - 患者一覧
-- `POST /api/patients` - 患者登録
-- `GET /api/patients/{id}` - 患者詳細
-- `GET /api/alerts` - アラート一覧
-- `GET /api/knowledge` - ナレッジベース
+### Admin API（7ルーター）
+
+全エンドポイントの詳細仕様は [docs/api-design.md](../docs/api-design.md) を参照。
+
+- `/api/setup/*` - セットアップ・初期化
+- `/api/dashboard/*` - ダッシュボード統計・フィード
+- `/api/patients/*` - 患者CRUD・Slack連携・ファイル
+- `/api/alerts/*` - アラート管理・統計・スキャン
+- `/api/settings/*` - サービス設定・マスタ管理・エージェント設定
+- `/api/knowledge/*` - ナレッジベースCRUD・検索・シード
+- `/api/users/*` - ユーザー管理・ロール設定
 
 ## ディレクトリ構成
 
@@ -61,14 +81,28 @@ ADMIN_UI_URL=http://localhost:3000
 backend/
 ├── main.py              # FastAPI エントリポイント
 ├── config.py            # 環境変数・設定
-├── agents/              # マルチエージェント群
-│   ├── root_agent.py
-│   ├── intake_agent.py
-│   ├── context_agent.py
-│   ├── alert_agent.py
-│   └── summary_agent.py
-├── api/                 # REST API ルーター
-├── services/            # ビジネスロジック
+├── agents/              # マルチエージェント群（6クラス）
+│   ├── base_agent.py    # 共通基底クラス（Gemini連携・プロンプト管理）
+│   ├── root_agent.py    # オーケストレーター
+│   ├── intake_agent.py  # BPS構造化
+│   ├── context_agent.py # コンテキスト参照（SaveAgent含む）
+│   ├── alert_agent.py   # 異変検知
+│   └── summary_agent.py # 経過サマリー
+├── api/                 # REST API ルーター（7ルーター）
+│   ├── dashboard.py     # ダッシュボード統計
+│   ├── patients.py      # 患者CRUD・Slack連携
+│   ├── alerts.py        # アラート管理
+│   ├── setup.py         # セットアップ
+│   ├── settings.py      # サービス設定・マスタ
+│   ├── knowledge.py     # ナレッジベースCRUD
+│   └── users.py         # ユーザー管理
+├── services/            # ビジネスロジック（5サービス）
+│   ├── firestore_service.py
+│   ├── slack_service.py
+│   ├── rag_service.py
+│   ├── risk_service.py
+│   └── storage_service.py
+├── auth/                # Firebase認証
 ├── models/              # Pydantic モデル
 ├── slack/               # Slack Bot 処理
 └── cron/                # 定時タスク

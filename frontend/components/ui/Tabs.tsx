@@ -67,7 +67,7 @@ export function Tabs({ tabs, activeTab, onChange, className }: TabsProps) {
               )}
               {isActive && (
                 <span
-                  className="absolute inset-x-0 -bottom-px h-[2px] rounded-full bg-text-primary transition-all duration-200"
+                  className="absolute inset-x-0 -bottom-px h-[2px] rounded-full bg-accent-600 transition-all duration-200"
                   aria-hidden="true"
                 />
               )}

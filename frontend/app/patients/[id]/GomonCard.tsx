@@ -101,7 +101,7 @@ export function GomonCard({ patient, inline }: GomonCardProps) {
               className="rounded-lg border border-border-light bg-bg-secondary/50 p-3"
             >
               <div className="flex items-center gap-1.5 mb-1.5">
-                <Icon className="w-3.5 h-3.5 text-accent-500 flex-shrink-0" />
+                <Icon className="w-3.5 h-3.5 text-text-tertiary flex-shrink-0" />
                 <span className="text-xs text-text-tertiary font-medium">
                   {item.label}
                 </span>

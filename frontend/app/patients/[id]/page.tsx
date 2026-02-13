@@ -38,9 +38,9 @@ const BPS_SECTIONS = [
     narrativeKey: "bio_narrative" as const,
     trendKey: "bio_trend" as const,
     icon: Heart,
-    iconColor: "text-accent-500",
-    iconBg: "bg-accent-50",
-    borderColor: "border-accent-200",
+    iconColor: "text-text-secondary",
+    iconBg: "bg-bg-tertiary",
+    borderColor: "border-border",
   },
   {
     key: "psycho" as const,
@@ -48,9 +48,9 @@ const BPS_SECTIONS = [
     narrativeKey: "psycho_narrative" as const,
     trendKey: "psycho_trend" as const,
     icon: Brain,
-    iconColor: "text-warning",
-    iconBg: "bg-warning-subtle",
-    borderColor: "border-warning/20",
+    iconColor: "text-text-secondary",
+    iconBg: "bg-bg-tertiary",
+    borderColor: "border-border",
   },
   {
     key: "social" as const,
@@ -58,9 +58,9 @@ const BPS_SECTIONS = [
     narrativeKey: "social_narrative" as const,
     trendKey: "social_trend" as const,
     icon: Users,
-    iconColor: "text-success",
-    iconBg: "bg-success-subtle",
-    borderColor: "border-success/20",
+    iconColor: "text-text-secondary",
+    iconBg: "bg-bg-tertiary",
+    borderColor: "border-border",
   },
 ] as const;
 
@@ -308,9 +308,9 @@ function FilesCard({ patientId }: { patientId: string }) {
 
   const FileIcon = ({ type }: { type: string }) =>
     type === "pdf" ? (
-      <FileText className="w-4 h-4 text-danger" />
+      <FileText className="w-4 h-4 text-text-secondary" />
     ) : (
-      <Image className="w-4 h-4 text-accent-500" />
+      <Image className="w-4 h-4 text-text-secondary" />
     );
 
   if (loading) {

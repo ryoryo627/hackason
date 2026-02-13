@@ -11,6 +11,7 @@ patients/{patient_id}/
   ├── reports/{report_id}            # BPS構造化報告
   ├── context/current                # AI抽出コンテキスト（単一Doc）
   ├── alerts/{alert_id}              # アラート履歴
+  ├── risk_history/{history_id}      # リスクレベル変更履歴
   └── raw_files/{file_id}            # 生ファイルGCS参照
 
 knowledge_documents/{doc_id}/
@@ -72,6 +73,9 @@ service_configs/{service_id}         # API設定（APIキー・トークン直�
   slack_channel_name: string | null, // チャンネル名 "pt-田中太郎"
   slack_anchor_message_ts: string | null, // アンカーメッセージのts
   risk_level: "HIGH" | "MEDIUM" | "LOW", // 現在のリスクレベル
+  risk_level_source: "auto" | "manual",  // リスクレベル設定元（デフォルト "auto"）
+  risk_level_reason: string | null,      // リスクレベルの判定理由
+  risk_level_updated_at: Timestamp | null, // リスクレベル最終更新日時
   status: "active" | "archived",
   created_at: Timestamp,
   updated_at: Timestamp,
@@ -183,6 +187,26 @@ service_configs/{service_id}         # API設定（APIキー・トークン直�
 }
 ```
 
+## 6.5 risk_history サブコレクション
+
+```typescript
+// patients/{patient_id}/risk_history/{history_id}
+{
+  previous_level: "high" | "medium" | "low",  // 変更前レベル
+  new_level: "high" | "medium" | "low",       // 変更後レベル
+  source: "auto" | "manual",                  // 変更元
+  reason: string,                             // 変更理由（日本語）
+  trigger: string,                            // "alert_created" | "alert_acknowledged" | "alert_scan" | "manual_update"
+  alert_snapshot: {                            // 変更時点の未確認アラート数
+    high: number,
+    medium: number,
+    low: number,
+  },
+  created_by: string,                         // "system" | ユーザー名
+  created_at: Timestamp,
+}
+```
+
 ## 7. raw_files サブコレクション
 
 ```typescript
@@ -214,8 +238,8 @@ service_configs/{service_id}         # API設定（APIキー・トークン直�
   raw_text: string | null,           // Markdown直接入力の場合
 
   // チャンク設定
-  chunk_size: number,                // デフォルト 500 tokens
-  chunk_overlap: number,             // デフォルト 50 tokens
+  chunk_size: number,                // デフォルト 500文字（characters）— len()による文字数カウント
+  chunk_overlap: number,             // デフォルト 50文字 overlap
 
   // ステータス
   status: "uploading" | "processing" | "indexed" | "error",

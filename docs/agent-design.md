@@ -1,5 +1,7 @@
 # AIエージェント + RAGナレッジベース設計書
 
+> Bio-Psycho-Social（BPS）フレームワークに基づくマルチエージェントシステムとRAGナレッジベースの設計仕様。
+
 ## 0. Gemini 3 Flash Preview 設定
 
 本システムは **Gemini 3 Flash Preview** を使用。
@@ -50,6 +52,7 @@ BaseAgent (共通基底クラス — Gemini連携・プロンプト管理)
 Root Agent (オーケストレーター)
 ├── Intake Agent    : テキスト/ファイル → BPS構造化 → Firestore保存
 ├── Context Agent   : コンテキスト参照 → BPS分析回答
+│   └── SaveAgent   : 直近メッセージ取得・保存（Context Agent内に定義）
 ├── Alert Agent     : 横断分析 → 異変パターン検知
 └── Summary Agent   : BPS経過サマリー → オンコール引き継ぎ
          ↕
@@ -269,6 +272,31 @@ BPSフレームワークに基づいて回答してください。
 | 即時トリガー | 新規報告Firestore保存時 | 当該患者の過去7日間と比較 |
 | 定時トリガー | 朝8時（Cloud Scheduler） | 全患者の過去24時間を横断スキャン |
 
+#### リスクレベル自動再計算
+
+> 実装詳細: `backend/services/risk_service.py`（エスカレーションルール）
+
+Alert Agentがアラートを生成した後、`RiskService.recalculate()` が呼び出され、未確認アラートの件数と重大度に基づいてリスクレベルを自動的に再計算する。AI推論ではなく、決定論的なルールベースのロジックで動作する。
+
+| トリガー | 呼び出し元 |
+|---------|-----------|
+| アラート生成後 | `alert_agent.py` — 新規アラート保存後 |
+| アラート確認後 | `patients.py`, `alerts.py` — acknowledge処理後 |
+| 定時スキャン後 | `alerts.py` — morning-scan処理後 |
+
+**エスカレーションルール（優先度順）:**
+
+| 条件 | 結果レベル |
+|------|----------|
+| 未確認HIGH ≥ 1件 | HIGH |
+| 未確認MEDIUM ≥ 2件 | HIGH |
+| 未確認MEDIUM = 1件 | MEDIUM |
+| 未確認LOW ≥ 3件 | MEDIUM |
+| 未確認LOW ≥ 1件 | LOW |
+| 全確認済み + 14日以上経過 | LOW |
+| 全確認済み + 7〜13日経過 | 1段階下げ |
+| 手動設定中 | 自動ディエスカレーション停止 |
+
 ### 6.2 BPS異変検知パターン
 
 | ID | パターン名 | 検知条件 | 緊急度 | 推奨アクション |
@@ -441,8 +469,8 @@ Firestore保存 (organizations/{org_id}/knowledge/{doc_id}/chunks/{chunk_id})
 
 | パラメータ | デフォルト値 | 説明 |
 |-----------|-----------|------|
-| chunk_size | 500 tokens | チャンクの最大トークン数 |
-| chunk_overlap | 50 tokens | 隣接チャンク間のオーバーラップ |
+| chunk_size | 500文字（characters） | チャンクの最大文字数（`len()`による文字数カウント） |
+| chunk_overlap | 50文字 | 隣接チャンク間のオーバーラップ（文字数） |
 | separator | 段落・セクション区切り優先 | 意味的な境界を尊重 |
 
 ### 8.4 エージェント別カテゴリバインド

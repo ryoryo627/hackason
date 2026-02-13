@@ -24,7 +24,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       "danger-fill":
         "bg-danger text-white hover:bg-danger/90 active:bg-danger/80",
       ghost:
-        "bg-transparent text-text-secondary hover:bg-bg-tertiary hover:text-text-primary active:bg-bg-active",
+        "bg-transparent text-text-secondary hover:bg-bg-hover hover:text-text-primary active:bg-bg-active",
     };
 
     const sizes = {

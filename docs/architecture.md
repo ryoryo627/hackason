@@ -1,5 +1,7 @@
 # アーキテクチャ設計書
 
+> 関連: [データモデル設計書](data-model.md)（Firestoreスキーマ詳細）| [AIエージェント設計書](agent-design.md)（エージェント構成・RAG設計）| [API設計書](api-design.md)（エンドポイント仕様）
+
 ## 1. 全体構成
 
 ```
@@ -101,6 +103,7 @@ Slack Events APIの受信、ADKエージェントの実行、REST APIの配信�
 | `/api/setup/*` | GET/POST | セットアップ・ユーザー・設定保存 |
 | `/api/settings/*` | GET/POST/PUT/DELETE | サービス設定・マスタ管理・エージェント設定 |
 | `/api/knowledge/*` | GET/POST/PUT/DELETE | ナレッジベースCRUD・検索 |
+| `/api/users/*` | GET/POST/PUT/DELETE | ユーザー管理・ロール設定 |
 
 ### 3.2 homecare-admin
 
@@ -182,11 +185,18 @@ GitHub (main branch)
 | Firestore | (default) | アプリケーションデータ |
 | GCS Bucket | (バケット名) | 生ファイルストレージ |
 | GCS Bucket | (バケット名) | ナレッジベースファイル |
-| Vertex AI Vector Search Index | homecare-rag-index | RAGベクトルインデックス |
-| Vertex AI Vector Search Endpoint | homecare-rag-endpoint | RAG検索エンドポイント |
+| — | — | ※ベクトル検索はFirestore + numpy cosine similarityで実装（将来Vertex AI Vector Search移行予定） |
 | Cloud Scheduler Job | morning-scan | 朝8時定時タスク |
 | Firestore service_configs | {org_id}_slack, etc. | APIキー・トークン管理 |
 | Firebase Auth | - | ユーザー認証 |
+
+## 5.2 ランタイム最適化
+
+| 最適化 | 設定 | 用途 |
+|--------|------|------|
+| エージェントキャッシュ | TTL 600秒 | 同一組織の連続リクエストでエージェント再初期化を回避 |
+| イベント重複排除 | LRU 5000件 | Slack Events APIのリトライによる重複処理を防止 |
+| 同時処理制限 | セマフォ = 3 | Gemini APIへの同時リクエスト数を制限し、レート制限を回避 |
 
 ## 6. データフロー定義
 
@@ -231,6 +241,7 @@ GitHub (main branch)
       ├→ Context更新 (patients/{id}/context)
       ├→ Alert Agent → 過去7日間比較
       │   └─ [閾値超過] → Slack アラート投稿 + Firestore alerts/ 保存
+      ├→ [アラート生成時] → RiskService.recalculate() → リスクレベル自動更新 + risk_history記録
       └→ Slack スレッドに確認応答
 ```
 
@@ -239,9 +250,9 @@ GitHub (main branch)
 ```
 エージェント処理中 → RAG検索要求
   ├─ クエリをgemini-embedding-001でベクトル化
-  ├─ Vertex AI Vector Searchで類似チャンク検索
-  ├─ エージェントのカテゴリバインドでフィルタ
-  ├─ Top-Kチャンクを取得
+  ├─ Firestoreから対象チャンクを取得（カテゴリバインドでフィルタ）
+  ├─ numpy cosine similarityで類似度計算
+  ├─ Top-Kチャンクを返却
   └→ Geminiプロンプトのコンテキストとして注入
 ```
 
@@ -253,5 +264,6 @@ Cloud Scheduler (毎朝8:00 JST) → POST /cron/morning-scan
     ├─ Firestore 全patients スキャン
     ├─ 各患者の過去24h reports 分析
     ├─ 緊急度スコアリング (HIGH/MEDIUM/LOW)
+    ├─ RiskService.recalculate() → 各患者のリスクレベル自動再計算
     └→ Slack #oncall-night にレポート投稿
 ```
