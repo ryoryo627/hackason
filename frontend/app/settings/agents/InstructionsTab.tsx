@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { Card, Button, Alert, Textarea } from "@/components/ui";
 import {
   Loader2,
@@ -17,7 +17,8 @@ import {
   Info,
   Sparkles,
 } from "lucide-react";
-import { settingsApi, type AgentPromptConfig } from "@/lib/api";
+import { settingsApi } from "@/lib/api";
+import { useAgentPrompts } from "@/hooks/useApi";
 import { PROMPT_TEMPLATES } from "./PromptTemplates";
 
 interface AgentMeta {
@@ -79,7 +80,6 @@ const AGENTS: AgentMeta[] = [
 ];
 
 export function InstructionsTab() {
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [sharedPrompt, setSharedPrompt] = useState("");
@@ -101,25 +101,18 @@ export function InstructionsTab() {
   const [showSharedHelp, setShowSharedHelp] = useState(false);
   const [showAgentHelp, setShowAgentHelp] = useState<string | null>(null);
 
-  const fetchPrompts = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const config: AgentPromptConfig = await settingsApi.getAgentPrompts();
+  // SWR hook
+  const { data: config, isLoading: loading, mutate: mutatePrompts } = useAgentPrompts();
+
+  // Sync SWR data into local editable state
+  useEffect(() => {
+    if (config) {
       setSharedPrompt(config.shared_prompt);
       setAgentPrompts(config.agent_prompts);
       setOriginalShared(config.shared_prompt);
       setOriginalAgents({ ...config.agent_prompts });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "読み込みに失敗しました");
-    } finally {
-      setLoading(false);
     }
-  }, []);
-
-  useEffect(() => {
-    fetchPrompts();
-  }, [fetchPrompts]);
+  }, [config]);
 
   const showSuccess = (field: string) => {
     setSuccessField(field);
@@ -133,6 +126,7 @@ export function InstructionsTab() {
       await settingsApi.updateAgentPrompts({ shared_prompt: sharedPrompt });
       setOriginalShared(sharedPrompt);
       showSuccess("shared");
+      await mutatePrompts();
     } catch (err) {
       setFieldError(
         err instanceof Error ? err.message : "保存に失敗しました"
@@ -147,7 +141,7 @@ export function InstructionsTab() {
       setSavingField("shared");
       setFieldError(null);
       await settingsApi.resetAgentPrompt();
-      await fetchPrompts();
+      await mutatePrompts();
       showSuccess("shared");
     } catch (err) {
       setFieldError(
@@ -170,6 +164,7 @@ export function InstructionsTab() {
         [agentId]: agentPrompts[agentId],
       }));
       showSuccess(agentId);
+      await mutatePrompts();
     } catch (err) {
       setFieldError(
         err instanceof Error ? err.message : "保存に失敗しました"
@@ -184,7 +179,7 @@ export function InstructionsTab() {
       setSavingField(agentId);
       setFieldError(null);
       await settingsApi.resetAgentPrompt(agentId);
-      await fetchPrompts();
+      await mutatePrompts();
       showSuccess(agentId);
     } catch (err) {
       setFieldError(

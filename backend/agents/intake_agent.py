@@ -11,6 +11,8 @@ from typing import Any
 
 from .base_agent import BaseAgent, DEFAULT_AGENT_PROMPTS
 from services.firestore_service import FirestoreService
+from services.storage_service import StorageService
+from config import get_settings
 
 # BPS structuring prompt template
 BPS_PROMPT_TEMPLATE = """
@@ -93,6 +95,8 @@ class IntakeAgent(BaseAgent):
         slack_message_ts: str | None = None,
         slack_user_id: str | None = None,
         knowledge_chunks: list[dict[str, Any]] | None = None,
+        files: list[dict[str, Any]] | None = None,
+        org_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Process an incoming report and store structured BPS data.
@@ -104,6 +108,8 @@ class IntakeAgent(BaseAgent):
             reporter_role: Role of the reporter (nurse, pharmacist, etc.)
             slack_message_ts: Slack message timestamp (optional)
             knowledge_chunks: RAG knowledge chunks (optional)
+            files: Slack file attachments (optional)
+            org_id: Organization ID for GCS path (optional)
 
         Returns:
             dict with success status, report_id, and confirmation message
@@ -161,6 +167,19 @@ class IntakeAgent(BaseAgent):
 
         # Save to Firestore
         report_id = await FirestoreService.create_report(patient_id, report_data)
+
+        # Process Slack file attachments (non-fatal)
+        if files and org_id:
+            try:
+                await self._process_slack_files(
+                    files=files,
+                    patient_id=patient_id,
+                    org_id=org_id,
+                    report_id=report_id,
+                    uploaded_by=reporter_name,
+                )
+            except Exception as e:
+                print(f"[WARN] Slack file processing failed (non-fatal): {e}")
 
         # Update patient context
         await self._update_context(patient_id, bps_data)
@@ -313,6 +332,91 @@ class IntakeAgent(BaseAgent):
             parts.append(str(concerns))
 
         return ", ".join(p for p in parts if p) if parts else ""
+
+    async def _process_slack_files(
+        self,
+        files: list[dict[str, Any]],
+        patient_id: str,
+        org_id: str,
+        report_id: str,
+        uploaded_by: str,
+    ) -> None:
+        """
+        Download Slack file attachments and upload to GCS.
+
+        Only processes PDF and image files. Failures are non-fatal.
+        """
+        import httpx
+
+        from services.slack_service import SlackService
+
+        settings = get_settings()
+        slack_token = await SlackService.get_bot_token(org_id)
+        if not slack_token:
+            return
+
+        # Filter to supported file types
+        supported_mimetypes = {
+            "application/pdf": "pdf",
+            "image/png": "image",
+            "image/jpeg": "image",
+            "image/gif": "image",
+            "image/webp": "image",
+        }
+
+        for file_info in files:
+            mimetype = file_info.get("mimetype", "")
+            if mimetype not in supported_mimetypes:
+                continue
+
+            url_private = file_info.get("url_private")
+            if not url_private:
+                continue
+
+            try:
+                # Download from Slack
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(
+                        url_private,
+                        headers={"Authorization": f"Bearer {slack_token}"},
+                        follow_redirects=True,
+                        timeout=30.0,
+                    )
+                    response.raise_for_status()
+                    file_bytes = response.content
+
+                # Upload to GCS
+                slack_file_id = file_info.get("id", "unknown")
+                filename = file_info.get("name", "file")
+                destination_path = (
+                    f"{org_id}/{patient_id}/slack/{slack_file_id}_{filename}"
+                )
+                gcs_uri = await StorageService.upload_file(
+                    bucket_name=settings.gcs_bucket_name,
+                    destination_path=destination_path,
+                    file_bytes=file_bytes,
+                    content_type=mimetype,
+                )
+
+                # Save raw file record in Firestore
+                file_type = supported_mimetypes[mimetype]
+                await FirestoreService.create_raw_file(
+                    patient_id=patient_id,
+                    data={
+                        "file_type": file_type,
+                        "original_name": filename,
+                        "size_bytes": len(file_bytes),
+                        "uploaded_by": uploaded_by,
+                        "gcs_uri": gcs_uri,
+                        "linked_report_id": report_id,
+                        "source": "slack",
+                    },
+                )
+            except Exception as e:
+                print(
+                    f"[WARN] Failed to process Slack file "
+                    f"{file_info.get('name', 'unknown')}: {e}"
+                )
 
     async def _generate_bps_narrative(
         self,

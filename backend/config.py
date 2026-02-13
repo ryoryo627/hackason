@@ -26,7 +26,7 @@ class Settings(BaseSettings):
 
     # Vertex AI
     vertex_ai_region: str = Field(default="asia-northeast1")
-    embedding_model: str = Field(default="text-embedding-005")
+    embedding_model: str = Field(default="gemini-embedding-001")
 
     # Gemini
     gemini_model: str = Field(default="gemini-3-flash-preview")

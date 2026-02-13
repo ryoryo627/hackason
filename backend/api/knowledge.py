@@ -11,6 +11,8 @@ from fastapi import APIRouter, Query, UploadFile, File, HTTPException
 from pydantic import BaseModel
 
 from services.firestore_service import FirestoreService
+from services.storage_service import StorageService
+from config import get_settings
 
 router = APIRouter()
 
@@ -172,6 +174,24 @@ async def upload_document_file(
     # Read file bytes
     file_bytes = await file.read()
 
+    # Upload original file to GCS for persistent storage
+    gcs_uri = None
+    try:
+        settings = get_settings()
+        destination_path = f"{org_id}/{document_id}/{file.filename}"
+        gcs_uri = await StorageService.upload_file(
+            bucket_name=settings.gcs_knowledge_bucket,
+            destination_path=destination_path,
+            file_bytes=file_bytes,
+            content_type=file.content_type,
+        )
+        doc_ref.update({
+            "gcs_uri": gcs_uri,
+            "file_size_bytes": len(file_bytes),
+        })
+    except Exception as e:
+        print(f"[WARN] GCS upload failed (RAG processing will continue): {e}")
+
     # Get Gemini API key for embedding generation
     from agents.base_agent import BaseAgent
 
@@ -231,6 +251,33 @@ async def get_document(
     return {"document": data}
 
 
+@router.get("/documents/{document_id}/download")
+async def get_document_download_url(
+    document_id: str,
+    org_id: str = Query(...),
+):
+    """Get a signed download URL for the original document file."""
+    db = FirestoreService.get_client()
+    doc_ref = (
+        db.collection("organizations")
+        .document(org_id)
+        .collection("knowledge")
+        .document(document_id)
+    )
+    doc = doc_ref.get()
+
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    data = doc.to_dict()
+    gcs_uri = data.get("gcs_uri")
+    if not gcs_uri:
+        raise HTTPException(status_code=404, detail="原本ファイルが保存されていません")
+
+    signed_url = await StorageService.generate_signed_url(gcs_uri)
+    return {"url": signed_url, "file_name": data.get("file_name", "")}
+
+
 @router.get("/documents/{document_id}/chunks")
 async def list_document_chunks(
     document_id: str,
@@ -285,6 +332,17 @@ async def delete_document(
         .collection("knowledge")
         .document(document_id)
     )
+
+    # Delete original file from GCS if it exists
+    doc = doc_ref.get()
+    if doc.exists:
+        doc_data = doc.to_dict()
+        gcs_uri = doc_data.get("gcs_uri")
+        if gcs_uri:
+            try:
+                await StorageService.delete_file(gcs_uri)
+            except Exception as e:
+                print(f"[WARN] GCS file deletion failed: {e}")
 
     # Delete chunks subcollection first
     chunks = doc_ref.collection("chunks").stream()

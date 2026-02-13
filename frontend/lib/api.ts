@@ -623,6 +623,27 @@ export const patientsApi = {
   },
 
   /**
+   * List attached files for a patient.
+   */
+  listFiles: (
+    patientId: string,
+    limit?: number
+  ): Promise<{ patient_id: string; files: RawFile[]; total: number }> => {
+    const params = limit ? `?limit=${limit}` : "";
+    return apiRequest(`/api/patients/${patientId}/files${params}`);
+  },
+
+  /**
+   * Get a signed download URL for a patient's attached file.
+   */
+  getFileUrl: (
+    patientId: string,
+    fileId: string
+  ): Promise<{ url: string; file_name: string; file_type: string }> => {
+    return apiRequest(`/api/patients/${patientId}/files/${fileId}/url`);
+  },
+
+  /**
    * Acknowledge a report (mark as read).
    */
   acknowledgeReport: (
@@ -1117,6 +1138,18 @@ export const usersApi = {
 // Knowledge API
 // ============================================================
 
+export interface RawFile {
+  id: string;
+  file_type: "pdf" | "image" | "voice";
+  original_name: string;
+  size_bytes: number;
+  uploaded_by: string;
+  gcs_uri: string;
+  linked_report_id?: string;
+  source?: string;
+  created_at?: string;
+}
+
 export interface KnowledgeDocument {
   id: string;
   title: string;
@@ -1127,6 +1160,7 @@ export interface KnowledgeDocument {
   agent_bindings?: string[];
   file_name?: string;
   file_type?: string;
+  gcs_uri?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -1285,6 +1319,17 @@ export const knowledgeApi = {
     return apiRequest(`/api/knowledge/documents/${documentId}/bindings?${params}`, {
       method: "PUT",
     });
+  },
+
+  /**
+   * Get a signed download URL for the original document file.
+   */
+  getDownloadUrl: (
+    documentId: string
+  ): Promise<{ url: string; file_name: string }> => {
+    return apiRequest(
+      `/api/knowledge/documents/${documentId}/download?org_id=${getOrgId()}`
+    );
   },
 
   /**

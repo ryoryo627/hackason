@@ -720,6 +720,39 @@ class FirestoreService:
 
         return DEFAULT_BINDINGS.get(agent_id, [])
 
+    # === Raw Files (Slack attachments) ===
+
+    @classmethod
+    async def create_raw_file(cls, patient_id: str, data: dict[str, Any]) -> str:
+        """Create a raw file record in the patient's raw_files subcollection."""
+        db = cls.get_client()
+        data["created_at"] = firestore.SERVER_TIMESTAMP
+        doc_ref = (
+            db.collection("patients")
+            .document(patient_id)
+            .collection("raw_files")
+            .document()
+        )
+        doc_ref.set(data)
+        return doc_ref.id
+
+    @classmethod
+    async def list_raw_files(
+        cls, patient_id: str, limit: int = 20
+    ) -> list[dict[str, Any]]:
+        """List raw files for a patient."""
+        db = cls.get_client()
+        query = (
+            db.collection("patients")
+            .document(patient_id)
+            .collection("raw_files")
+            .limit(limit)
+        )
+        docs = query.stream()
+        results = [{"id": doc.id, **doc.to_dict()} for doc in docs]
+        results.sort(key=lambda x: x.get("created_at", "") or "", reverse=True)
+        return results
+
     # === Batch Operations ===
 
     @classmethod

@@ -123,6 +123,9 @@ class RootAgent:
                 "response": None,
             }
 
+        # Extract file attachments from event
+        files = event.get("files", [])
+
         # Route based on event type
         if event_type == "message":
             # Check if this is a reply to the anchor message
@@ -134,6 +137,8 @@ class RootAgent:
                     message_ts=ts,
                     channel=channel,
                     thread_ts=thread_ts,
+                    files=files,
+                    org_id=org_id,
                 )
             # Regular message - ignore (don't save casual chat)
             return {
@@ -239,6 +244,8 @@ class RootAgent:
         message_ts: str,
         channel: str,
         thread_ts: str,
+        files: list[dict[str, Any]] | None = None,
+        org_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Handle a report (thread reply to anchor message).
@@ -283,6 +290,8 @@ class RootAgent:
             slack_message_ts=message_ts,
             slack_user_id=user,
             knowledge_chunks=knowledge_chunks,
+            files=files or [],
+            org_id=org_id,
         )
 
         if result.get("success"):

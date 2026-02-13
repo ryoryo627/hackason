@@ -34,7 +34,7 @@ GCP_REGION=asia-northeast1
 FIRESTORE_DATABASE_ID=(default)
 GCS_BUCKET_NAME=homecare-ai-files
 GCS_KNOWLEDGE_BUCKET=homecare-ai-knowledge
-EMBEDDING_MODEL=text-embedding-005
+EMBEDDING_MODEL=gemini-embedding-001
 GEMINI_MODEL=gemini-3-flash-preview
 ADMIN_UI_URL=http://localhost:3000
 ```

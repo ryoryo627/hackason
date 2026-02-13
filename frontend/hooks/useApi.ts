@@ -3,13 +3,12 @@
 /**
  * SWR-based data fetching hooks for HomeCare AI.
  *
- * Provides request deduplication, stale-while-revalidate caching,
- * automatic revalidation on focus, and shared cache across components.
+ * Global SWR config (fetcher, revalidateOnFocus, dedupingInterval, errorRetryCount)
+ * is provided by <Providers> in layout.tsx. Hooks here only specify overrides.
  */
 
-import useSWR, { SWRConfiguration } from "swr";
+import useSWR from "swr";
 import {
-  apiRequest,
   getOrgId,
   type Patient,
   type Report,
@@ -18,17 +17,12 @@ import {
   type DashboardStats,
   type ConnectionStatus,
   type NightSummary,
+  type AgentPromptConfig,
 } from "@/lib/api";
 
 // ============================================================
-// SWR Fetcher
+// Helpers
 // ============================================================
-
-/**
- * Generic fetcher that wraps apiRequest for SWR.
- * The key is the API endpoint URL (relative to API_BASE_URL).
- */
-const fetcher = <T>(endpoint: string): Promise<T> => apiRequest<T>(endpoint);
 
 /**
  * Safe org_id getter that returns null instead of throwing.
@@ -43,16 +37,6 @@ function safeGetOrgId(): string | null {
 }
 
 // ============================================================
-// Default SWR Config
-// ============================================================
-
-const defaultConfig: SWRConfiguration = {
-  revalidateOnFocus: true,
-  dedupingInterval: 5000,
-  errorRetryCount: 2,
-};
-
-// ============================================================
 // Dashboard Hooks
 // ============================================================
 
@@ -60,8 +44,7 @@ export function useDashboardStats() {
   const orgId = safeGetOrgId();
   return useSWR<DashboardStats>(
     orgId ? `/api/dashboard/stats?org_id=${orgId}` : null,
-    fetcher,
-    { ...defaultConfig, refreshInterval: 60000 }
+    { refreshInterval: 60000 }
   );
 }
 
@@ -69,8 +52,7 @@ export function useRecentAlerts(limit: number = 5) {
   const orgId = safeGetOrgId();
   return useSWR<{ alerts: Alert[] }>(
     orgId ? `/api/dashboard/recent-alerts?org_id=${orgId}&limit=${limit}` : null,
-    fetcher,
-    { ...defaultConfig, refreshInterval: 60000 }
+    { refreshInterval: 60000 }
   );
 }
 
@@ -78,8 +60,7 @@ export function useNightSummary(hours: number = 14) {
   const orgId = safeGetOrgId();
   return useSWR<NightSummary>(
     orgId ? `/api/dashboard/night-summary?org_id=${orgId}&hours=${hours}` : null,
-    fetcher,
-    { ...defaultConfig, refreshInterval: 60000 }
+    { refreshInterval: 60000 }
   );
 }
 
@@ -87,8 +68,7 @@ export function useConnectionStatus() {
   const orgId = safeGetOrgId();
   return useSWR<ConnectionStatus>(
     orgId ? `/api/dashboard/connection-status?org_id=${orgId}` : null,
-    fetcher,
-    { ...defaultConfig, revalidateOnFocus: false }
+    { revalidateOnFocus: false }
   );
 }
 
@@ -113,9 +93,7 @@ export function usePatients(params?: {
     ...(params?.limit && { limit: params.limit.toString() }),
   });
   return useSWR<{ patients: Patient[]; total: number }>(
-    orgId ? `/api/patients?${searchParams}` : null,
-    fetcher,
-    defaultConfig
+    orgId ? `/api/patients?${searchParams}` : null
   );
 }
 
@@ -125,11 +103,7 @@ export function usePatient(patientId: string | null) {
     recent_reports: Report[];
     alerts: Alert[];
     context: BPSContext | null;
-  }>(
-    patientId ? `/api/patients/${patientId}` : null,
-    fetcher,
-    defaultConfig
-  );
+  }>(patientId ? `/api/patients/${patientId}` : null);
 }
 
 export function usePatientReports(
@@ -142,9 +116,7 @@ export function usePatientReports(
     searchParams.set("acknowledged", params.acknowledged.toString());
   const qs = searchParams.toString();
   return useSWR<{ patient_id: string; reports: Report[]; total: number }>(
-    patientId ? `/api/patients/${patientId}/reports${qs ? `?${qs}` : ""}` : null,
-    fetcher,
-    defaultConfig
+    patientId ? `/api/patients/${patientId}/reports${qs ? `?${qs}` : ""}` : null
   );
 }
 
@@ -168,8 +140,7 @@ export function useAlerts(params?: {
   });
   return useSWR<{ alerts: Alert[]; total: number }>(
     orgId ? `/api/alerts?${searchParams}` : null,
-    fetcher,
-    { ...defaultConfig, refreshInterval: 60000 }
+    { refreshInterval: 60000 }
   );
 }
 
@@ -198,13 +169,12 @@ export function useActivityFeed(limit: number = 20, hours: number = 48) {
     orgId
       ? `/api/dashboard/activity-feed?org_id=${orgId}&limit=${limit}&hours=${hours}`
       : null,
-    fetcher,
-    { ...defaultConfig, refreshInterval: 60000 }
+    { refreshInterval: 60000 }
   );
 }
 
 // ============================================================
-// Alert Hooks
+// Alert Stats Hook
 // ============================================================
 
 export function useAlertStats() {
@@ -215,8 +185,7 @@ export function useAlertStats() {
     recent_alerts: Alert[];
   }>(
     orgId ? `/api/alerts/stats/summary?org_id=${orgId}` : null,
-    fetcher,
-    { ...defaultConfig, refreshInterval: 60000 }
+    { refreshInterval: 60000 }
   );
 }
 
@@ -224,7 +193,7 @@ export function useAlertStats() {
 // Knowledge Hooks
 // ============================================================
 
-import type { KnowledgeDocument, SearchResult } from "@/lib/api";
+import type { KnowledgeDocument, KnowledgeCategory, SearchResult } from "@/lib/api";
 
 export function useKnowledgeDocuments(category?: string) {
   const orgId = safeGetOrgId();
@@ -233,9 +202,13 @@ export function useKnowledgeDocuments(category?: string) {
     ...(category && { category }),
   });
   return useSWR<{ documents: KnowledgeDocument[]; total: number }>(
-    orgId ? `/api/knowledge/documents?${params}` : null,
-    fetcher,
-    defaultConfig
+    orgId ? `/api/knowledge/documents?${params}` : null
+  );
+}
+
+export function useKnowledgeCategories() {
+  return useSWR<{ categories: KnowledgeCategory[] }>(
+    "/api/knowledge/categories"
   );
 }
 
@@ -249,8 +222,7 @@ export function useKnowledgeSearch(query: string, category?: string) {
   });
   return useSWR<{ results: SearchResult[]; query: string; total: number }>(
     orgId && query ? `/api/knowledge/search?${params}` : null,
-    fetcher,
-    { ...defaultConfig, revalidateOnFocus: false }
+    { revalidateOnFocus: false }
   );
 }
 
@@ -269,7 +241,17 @@ export function useKnowledgeChunks(docId: string | null) {
     orgId && docId
       ? `/api/knowledge/documents/${docId}/chunks?org_id=${orgId}`
       : null,
-    fetcher,
-    { ...defaultConfig, revalidateOnFocus: false }
+    { revalidateOnFocus: false }
+  );
+}
+
+// ============================================================
+// Agent Prompts Hook
+// ============================================================
+
+export function useAgentPrompts() {
+  const orgId = safeGetOrgId();
+  return useSWR<AgentPromptConfig>(
+    orgId ? `/api/settings/agents?org_id=${orgId}` : null
   );
 }

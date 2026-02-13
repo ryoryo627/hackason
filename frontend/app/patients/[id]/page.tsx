@@ -1,12 +1,12 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AdminLayout } from "@/components/layout";
 import { Card, CardHeader, Button, RiskBadge, Badge, Alert as AlertBanner, SkeletonCard } from "@/components/ui";
-import { ArrowLeft, Download, MessageSquare, Loader2, CheckCircle2, Eye, EyeOff, Pencil, Trash2, Heart, Brain, Users } from "lucide-react";
-import { patientsApi, getUserData, type Report, type Alert, type BPSContext } from "@/lib/api";
+import { ArrowLeft, Download, MessageSquare, Loader2, CheckCircle2, Eye, EyeOff, Pencil, Trash2, Heart, Brain, Users, FileText, Image, ExternalLink } from "lucide-react";
+import { patientsApi, getUserData, type Report, type Alert, type BPSContext, type RawFile } from "@/lib/api";
 import { usePatient } from "@/hooks/useApi";
 import { getRiskLevel } from "@/lib/utils";
 import { DeletePatientModal } from "./DeletePatientModal";
@@ -275,6 +275,104 @@ function BpsTags({ bps }: { bps: Record<string, unknown> }) {
   );
 }
 
+function FilesCard({ patientId }: { patientId: string }) {
+  const [files, setFiles] = useState<RawFile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [openingId, setOpeningId] = useState<string | null>(null);
+
+  useEffect(() => {
+    patientsApi
+      .listFiles(patientId)
+      .then((res) => setFiles(res.files))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [patientId]);
+
+  const handleOpen = async (fileId: string) => {
+    setOpeningId(fileId);
+    try {
+      const { url } = await patientsApi.getFileUrl(patientId, fileId);
+      window.open(url, "_blank");
+    } catch {
+      // silently fail
+    } finally {
+      setOpeningId(null);
+    }
+  };
+
+  const formatSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const FileIcon = ({ type }: { type: string }) =>
+    type === "pdf" ? (
+      <FileText className="w-4 h-4 text-danger" />
+    ) : (
+      <Image className="w-4 h-4 text-accent-500" />
+    );
+
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader title="添付ファイル" description="Slackからの添付ファイル" />
+        <div className="flex justify-center py-6">
+          <Loader2 className="w-5 h-5 animate-spin text-text-tertiary" />
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader
+        title="添付ファイル"
+        description={`${files.length}件`}
+      />
+      {files.length === 0 ? (
+        <div className="text-center py-6 text-text-secondary text-sm">
+          添付ファイルはありません
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {files.map((file) => (
+            <div
+              key={file.id}
+              className="flex items-center gap-3 p-3 rounded-lg bg-bg-secondary"
+            >
+              <FileIcon type={file.file_type} />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-text-primary truncate">
+                  {file.original_name}
+                </p>
+                <p className="text-xs text-text-tertiary">
+                  {formatSize(file.size_bytes)} | {file.uploaded_by}
+                  {file.created_at && (
+                    <> | {new Date(file.created_at).toLocaleDateString("ja-JP")}</>
+                  )}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleOpen(file.id)}
+                disabled={openingId === file.id}
+              >
+                {openingId === file.id ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <ExternalLink className="w-4 h-4" />
+                )}
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function ReportsTimeline({
   reports,
   patientId,
@@ -537,7 +635,10 @@ export default function PatientDetailPage({
       {/* BPS Summary + Alerts - 2 column */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <BPSSummaryCard context={context} />
-        <AlertsCard alerts={alerts} />
+        <div className="space-y-6">
+          <AlertsCard alerts={alerts} />
+          <FilesCard patientId={id} />
+        </div>
       </div>
 
       {/* Timeline */}

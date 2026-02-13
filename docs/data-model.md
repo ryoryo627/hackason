@@ -232,7 +232,7 @@ service_configs/{service_id}         # API設定（APIキー・トークン直�
   chunk_index: number,               // 0-indexed
   text: string,                      // チャンクテキスト
   token_count: number,
-  embedding: number[],               // text-embedding-005 Embedding (768次元 float配列)
+  embedding: number[],               // gemini-embedding-001 Embedding (768次元 float配列)
   category: string,                  // 非正規化: 親ドキュメントのカテゴリ
   source: string,                    // 非正規化: 親ドキュメントのタイトル
   org_id: string,                    // 非正規化: 組織ID
@@ -302,7 +302,7 @@ APIキー・トークン・設定値をFirestoreに直接保存する。組織�
 {
   project_id: string,                // GCPプロジェクトID
   region: string,                    // "asia-northeast1"
-  embedding_model: string,           // "text-embedding-005"
+  embedding_model: string,           // "gemini-embedding-001"
   updated_at: Timestamp,
 }
 

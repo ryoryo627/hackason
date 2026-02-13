@@ -361,7 +361,7 @@ Response:
 エージェントバインド設定更新。
 
 ### POST /api/knowledge/search
-ナレッジ検索（✅ text-embedding-005 + cosine similarity実装済み。APIキー未設定時はテキストマッチにフォールバック）。
+ナレッジ検索（✅ gemini-embedding-001 + cosine similarity実装済み。APIキー未設定時はテキストマッチにフォールバック）。
 
 ### GET /api/knowledge/categories
 利用可能なナレッジカテゴリ一覧取得。

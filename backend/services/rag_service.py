@@ -13,7 +13,7 @@ from typing import Any
 import numpy as np
 from google import genai
 
-EMBEDDING_MODEL = "text-embedding-005"
+EMBEDDING_MODEL = "gemini-embedding-001"
 MAX_BATCH_SIZE = 20
 MAX_CHUNKS_PER_DOC = 100
 
@@ -146,7 +146,7 @@ class RAGService:
     async def generate_embeddings(
         texts: list[str], api_key: str
     ) -> list[list[float]]:
-        """Generate embeddings using text-embedding-005 in batches."""
+        """Generate embeddings using gemini-embedding-001 in batches."""
         client = genai.Client(api_key=api_key)
         all_embeddings: list[list[float]] = []
 

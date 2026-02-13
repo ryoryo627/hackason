@@ -53,7 +53,7 @@ Root Agent (オーケストレーター)
 ├── Alert Agent     : 横断分析 → 異変パターン検知
 └── Summary Agent   : BPS経過サマリー → オンコール引き継ぎ
          ↕
-  RAG Knowledge Base (✅ Firestore + text-embedding-005 + cosine similarity 実装済み)
+  RAG Knowledge Base (✅ Firestore + gemini-embedding-001 + cosine similarity 実装済み)
 ```
 
 ### BaseAgent（共通基底クラス）
@@ -415,7 +415,7 @@ BPSフレームワークに基づいて回答してください。
 チャンキング (段落境界優先, 500文字, 50 overlap, max 100チャンク)
   │
   ▼
-Embedding生成 (google-genai text-embedding-005, 768次元, バッチ20件)
+Embedding生成 (google-genai gemini-embedding-001, 768次元, バッチ20件)
   │
   ▼
 Firestore保存 (organizations/{org_id}/knowledge/{doc_id}/chunks/{chunk_id})

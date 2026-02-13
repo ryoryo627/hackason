@@ -27,7 +27,7 @@ class VertexConfigRequest(BaseModel):
     org_id: str = Field(..., description="Organization ID")
     project_id: str = Field(..., description="GCP Project ID")
     region: str = Field("asia-northeast1", description="Region")
-    embedding_model: str = Field("text-embedding-005", description="Embedding model")
+    embedding_model: str = Field("gemini-embedding-001", description="Embedding model")
 
 
 class SlackConfigResponse(BaseModel):

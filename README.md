@@ -11,6 +11,13 @@
   <a href="https://ai.google.dev/"><img src="https://img.shields.io/badge/Gemini%203%20Flash%20Preview-8E75B2?style=for-the-badge&logo=google&logoColor=white" alt="Gemini"></a>
   <a href="https://cloud.google.com/run"><img src="https://img.shields.io/badge/Cloud%20Run-4285F4?style=for-the-badge&logo=googlecloud&logoColor=white" alt="Cloud Run"></a>
   <a href="https://cloud.google.com/firestore"><img src="https://img.shields.io/badge/Firestore-FFCA28?style=for-the-badge&logo=firebase&logoColor=black" alt="Firestore"></a>
+  <br>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python%203.12-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python"></a>
+  <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI"></a>
+  <a href="https://nextjs.org/"><img src="https://img.shields.io/badge/Next.js%2016-000000?style=for-the-badge&logo=nextdotjs&logoColor=white" alt="Next.js"></a>
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript"></a>
+  <a href="https://tailwindcss.com/"><img src="https://img.shields.io/badge/Tailwind%20CSS%204-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white" alt="Tailwind CSS"></a>
+  <a href="https://slack.com/"><img src="https://img.shields.io/badge/Slack%20Bot-4A154B?style=for-the-badge&logo=slack&logoColor=white" alt="Slack"></a>
 </p>
 
 <p align="center">
@@ -26,6 +33,8 @@
   <!-- TODO: デモ動画URL -->
   <a href="#">デモ動画</a>
 </p>
+
+Slackを患者ごとの情報集約ハブとし、Google Cloud上のAIエージェントが多職種からの報告をBio-Psycho-Social（BPS）フレームワークで自動構造化・蓄積・横断分析するシステムです。自然言語のチャット投稿から臨床的な異変パターンを検知し、Admin UIで患者状態の俯瞰・アラート管理・ナレッジベース運用を行えます。
 
 ---
 

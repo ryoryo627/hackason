@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useState, useRef } from "react";
 import {
   Card,
   CardHeader,
@@ -23,16 +23,18 @@ import {
   ChevronDown,
   ChevronRight,
   Scissors,
-  Brain,
   Link2,
   Check,
+  ExternalLink,
 } from "lucide-react";
+import { knowledgeApi } from "@/lib/api";
 import {
-  knowledgeApi,
-  KnowledgeDocument,
-  KnowledgeCategory,
-  SearchResult,
-} from "@/lib/api";
+  useKnowledgeDocuments,
+  useKnowledgeCategories,
+  useKnowledgeChunks,
+  useKnowledgeSearch,
+} from "@/hooks/useApi";
+import { useDebounce } from "@/hooks/useDebounce";
 
 const statusConfig: Record<
   string,
@@ -51,26 +53,14 @@ const AGENT_OPTIONS = [
   { id: "summary", label: "Summary" },
 ];
 
-interface ChunkData {
-  id: string;
-  chunk_index: number;
-  text: string;
-  token_count: number;
-}
-
 export function KnowledgeTab() {
-  const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
-  const [categories, setCategories] = useState<KnowledgeCategory[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const [categoryFilter, setCategoryFilter] = useState("");
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [showSearchResults, setShowSearchResults] = useState(false);
+  const debouncedSearch = useDebounce(searchQuery, 300);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -86,59 +76,32 @@ export function KnowledgeTab() {
 
   // Chunk viewer state
   const [expandedDocId, setExpandedDocId] = useState<string | null>(null);
-  const [chunks, setChunks] = useState<ChunkData[]>([]);
-  const [loadingChunks, setLoadingChunks] = useState(false);
   const [expandedChunkIdx, setExpandedChunkIdx] = useState<number | null>(null);
 
   // Agent binding state
   const [savingBindings, setSavingBindings] = useState<string | null>(null);
 
-  const fetchDocuments = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  // SWR hooks
+  const {
+    data: docsData,
+    isLoading: loading,
+    mutate: mutateDocs,
+  } = useKnowledgeDocuments(categoryFilter || undefined);
+  const documents = docsData?.documents ?? [];
 
-      const [docsData, catsData] = await Promise.all([
-        knowledgeApi.listDocuments({
-          ...(categoryFilter && { category: categoryFilter }),
-        }),
-        knowledgeApi.listCategories(),
-      ]);
+  const { data: catsData } = useKnowledgeCategories();
+  const categories = catsData?.categories ?? [];
 
-      setDocuments(docsData.documents);
-      setCategories(catsData.categories);
-    } catch (err) {
-      console.error("Knowledge fetch error:", err);
-      setError(
-        err instanceof Error ? err.message : "データの取得に失敗しました"
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [categoryFilter]);
+  const { data: chunksData, isLoading: loadingChunks } =
+    useKnowledgeChunks(expandedDocId);
+  const chunks = chunksData?.chunks ?? [];
 
-  useEffect(() => {
-    fetchDocuments();
-  }, [fetchDocuments]);
-
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
-
-    try {
-      setSearching(true);
-      const data = await knowledgeApi.search(searchQuery, {
-        ...(categoryFilter && { category: categoryFilter }),
-        limit: 10,
-      });
-      setSearchResults(data.results);
-      setShowSearchResults(true);
-    } catch (err) {
-      console.error("Search error:", err);
-      setError(err instanceof Error ? err.message : "検索に失敗しました");
-    } finally {
-      setSearching(false);
-    }
-  };
+  const { data: searchData, isLoading: searching } = useKnowledgeSearch(
+    debouncedSearch.trim(),
+    categoryFilter || undefined
+  );
+  const searchResults = searchData?.results ?? [];
+  const showSearchResults = debouncedSearch.trim().length > 0;
 
   const handleCreate = async () => {
     if (!newDoc.title || !newDoc.category) return;
@@ -153,7 +116,7 @@ export function KnowledgeTab() {
       setShowCreateModal(false);
       setNewDoc({ title: "", category: "", source: "" });
 
-      await fetchDocuments();
+      await mutateDocs();
     } catch (err) {
       console.error("Create error:", err);
       setError(err instanceof Error ? err.message : "作成に失敗しました");
@@ -172,7 +135,7 @@ export function KnowledgeTab() {
       setUploadProgress(null);
 
       showSuccess("ファイルのインデックスが完了しました");
-      await fetchDocuments();
+      await mutateDocs();
     } catch (err) {
       console.error("Upload error:", err);
       setUploadProgress(null);
@@ -192,36 +155,23 @@ export function KnowledgeTab() {
 
     try {
       await knowledgeApi.deleteDocument(docId);
-      setDocuments((prev) => prev.filter((d) => d.id !== docId));
       if (expandedDocId === docId) {
         setExpandedDocId(null);
-        setChunks([]);
       }
+      await mutateDocs();
     } catch (err) {
       console.error("Delete error:", err);
       setError(err instanceof Error ? err.message : "削除に失敗しました");
     }
   };
 
-  const handleToggleChunks = async (docId: string) => {
+  const handleToggleChunks = (docId: string) => {
     if (expandedDocId === docId) {
       setExpandedDocId(null);
-      setChunks([]);
       setExpandedChunkIdx(null);
-      return;
-    }
-
-    try {
-      setLoadingChunks(true);
+    } else {
       setExpandedDocId(docId);
       setExpandedChunkIdx(null);
-      const data = await knowledgeApi.getChunks(docId);
-      setChunks(data.chunks);
-    } catch (err) {
-      console.error("Chunks fetch error:", err);
-      setError(err instanceof Error ? err.message : "チャンク取得に失敗しました");
-    } finally {
-      setLoadingChunks(false);
     }
   };
 
@@ -237,12 +187,7 @@ export function KnowledgeTab() {
     try {
       setSavingBindings(docId);
       await knowledgeApi.updateAgentBindings(docId, newBindings);
-
-      setDocuments((prev) =>
-        prev.map((d) =>
-          d.id === docId ? { ...d, agent_bindings: newBindings } : d
-        )
-      );
+      await mutateDocs();
       showSuccess("エージェント連携を更新しました");
     } catch (err) {
       console.error("Binding update error:", err);
@@ -381,7 +326,6 @@ export function KnowledgeTab() {
               className="pl-10"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             />
           </div>
           <div className="w-48">
@@ -391,19 +335,11 @@ export function KnowledgeTab() {
               onChange={setCategoryFilter}
             />
           </div>
-          <Button
-            onClick={handleSearch}
-            disabled={searching || !searchQuery.trim()}
-          >
-            {searching ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <>
-                <Search className="w-4 h-4 mr-2" />
-                検索
-              </>
-            )}
-          </Button>
+          {searching && (
+            <div className="flex items-center">
+              <Loader2 className="w-4 h-4 animate-spin text-text-tertiary" />
+            </div>
+          )}
         </div>
       </Card>
 
@@ -413,10 +349,10 @@ export function KnowledgeTab() {
           <div className="flex items-center justify-between mb-4">
             <CardHeader
               title="検索結果"
-              description={`「${searchQuery}」で${searchResults.length}件見つかりました`}
+              description={`「${debouncedSearch}」で${searchResults.length}件見つかりました`}
             />
             <button
-              onClick={() => setShowSearchResults(false)}
+              onClick={() => setSearchQuery("")}
               className="text-text-tertiary hover:text-text-secondary"
             >
               <X className="w-5 h-5" />
@@ -564,6 +500,23 @@ export function KnowledgeTab() {
                     </div>
                   </div>
                   <div className="flex gap-2 shrink-0">
+                    {doc.gcs_uri && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        title="原本を表示"
+                        onClick={async () => {
+                          try {
+                            const { url } = await knowledgeApi.getDownloadUrl(doc.id);
+                            window.open(url, "_blank");
+                          } catch (err) {
+                            setError(err instanceof Error ? err.message : "ダウンロードに失敗しました");
+                          }
+                        }}
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"

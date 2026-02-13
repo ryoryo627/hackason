@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from services.firestore_service import FirestoreService
 from services.slack_service import SlackService
+from services.storage_service import StorageService
 
 logger = logging.getLogger(__name__)
 
@@ -891,4 +892,57 @@ async def get_patient_context(patient_id: str) -> dict[str, Any]:
             "psycho": {},
             "social": {},
         },
+    }
+
+
+@router.get("/{patient_id}/files")
+async def list_patient_files(
+    patient_id: str,
+    limit: int = Query(20, description="Maximum number of files"),
+) -> dict[str, Any]:
+    """
+    List attached files for a patient (Slack uploads stored in GCS).
+    """
+    patient = await FirestoreService.get_patient(patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="患者が見つかりません")
+
+    files = await FirestoreService.list_raw_files(patient_id, limit=limit)
+    return {
+        "patient_id": patient_id,
+        "files": files,
+        "total": len(files),
+    }
+
+
+@router.get("/{patient_id}/files/{file_id}/url")
+async def get_patient_file_url(
+    patient_id: str,
+    file_id: str,
+) -> dict[str, Any]:
+    """
+    Get a signed download URL for a patient's attached file.
+    """
+    db = FirestoreService.get_client()
+    doc = (
+        db.collection("patients")
+        .document(patient_id)
+        .collection("raw_files")
+        .document(file_id)
+        .get()
+    )
+
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="ファイルが見つかりません")
+
+    data = doc.to_dict()
+    gcs_uri = data.get("gcs_uri")
+    if not gcs_uri:
+        raise HTTPException(status_code=404, detail="ファイルが保存されていません")
+
+    signed_url = await StorageService.generate_signed_url(gcs_uri)
+    return {
+        "url": signed_url,
+        "file_name": data.get("original_name", ""),
+        "file_type": data.get("file_type", ""),
     }
