@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AdminLayout } from "@/components/layout";
 import { Card, CardHeader, Button, RiskBadge, Badge, Alert as AlertBanner, SkeletonCard } from "@/components/ui";
-import { ArrowLeft, Download, MessageSquare, Loader2, CheckCircle2, Eye, EyeOff, Pencil, Trash2, Heart, Brain, Users, FileText, Image, ExternalLink } from "lucide-react";
-import { patientsApi, getUserData, type Report, type Alert, type BPSContext, type RawFile } from "@/lib/api";
+import { ArrowLeft, Download, MessageSquare, Loader2, CheckCircle2, Eye, EyeOff, Pencil, Trash2, Heart, Brain, Users, FileText, Image, ExternalLink, TrendingUp, TrendingDown, Minus, Bot, User } from "lucide-react";
+import { patientsApi, getUserData, type Report, type Alert, type BPSContext, type RawFile, type RiskHistoryEntry } from "@/lib/api";
 import { usePatient } from "@/hooks/useApi";
 import { getRiskLevel } from "@/lib/utils";
 import { DeletePatientModal } from "./DeletePatientModal";
@@ -373,6 +373,90 @@ function FilesCard({ patientId }: { patientId: string }) {
   );
 }
 
+function RiskHistoryCard({ history, currentSource }: { history: RiskHistoryEntry[]; currentSource?: string }) {
+  const levelLabels: Record<string, string> = {
+    high: "高", medium: "中", low: "低",
+  };
+  const levelColors: Record<string, string> = {
+    high: "text-danger", medium: "text-warning", low: "text-success",
+  };
+
+  const TrendIcon = ({ prev, next }: { prev: string; next: string }) => {
+    const order = ["low", "medium", "high"];
+    const prevIdx = order.indexOf(prev);
+    const nextIdx = order.indexOf(next);
+    if (nextIdx > prevIdx) return <TrendingUp className="w-3.5 h-3.5 text-danger" />;
+    if (nextIdx < prevIdx) return <TrendingDown className="w-3.5 h-3.5 text-success" />;
+    return <Minus className="w-3.5 h-3.5 text-text-tertiary" />;
+  };
+
+  return (
+    <Card>
+      <CardHeader
+        title="リスク変更履歴"
+        description={currentSource === "auto" ? "AI自動判定中" : "手動設定中"}
+      />
+      {history.length === 0 ? (
+        <div className="text-center py-6 text-text-secondary text-sm">
+          リスク変更履歴はありません
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {history.map((entry) => (
+            <div
+              key={entry.id}
+              className="flex items-start gap-3 p-3 rounded-lg bg-bg-secondary"
+            >
+              <div className="mt-0.5">
+                <TrendIcon prev={entry.previous_level} next={entry.new_level} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={`font-medium ${levelColors[entry.previous_level] || ""}`}>
+                    {levelLabels[entry.previous_level] || entry.previous_level}
+                  </span>
+                  <span className="text-text-tertiary">→</span>
+                  <span className={`font-medium ${levelColors[entry.new_level] || ""}`}>
+                    {levelLabels[entry.new_level] || entry.new_level}
+                  </span>
+                  {entry.source === "auto" ? (
+                    <Badge variant="info" size="sm">
+                      <Bot className="w-3 h-3 mr-0.5" />
+                      自動
+                    </Badge>
+                  ) : (
+                    <Badge variant="default" size="sm">
+                      <User className="w-3 h-3 mr-0.5" />
+                      手動
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-sm text-text-secondary">{entry.reason}</p>
+                {(entry.alert_snapshot.high > 0 || entry.alert_snapshot.medium > 0 || entry.alert_snapshot.low > 0) && (
+                  <div className="flex gap-2 mt-1">
+                    {entry.alert_snapshot.high > 0 && (
+                      <span className="text-xs text-danger">緊急: {entry.alert_snapshot.high}</span>
+                    )}
+                    {entry.alert_snapshot.medium > 0 && (
+                      <span className="text-xs text-warning">注意: {entry.alert_snapshot.medium}</span>
+                    )}
+                    {entry.alert_snapshot.low > 0 && (
+                      <span className="text-xs text-text-tertiary">情報: {entry.alert_snapshot.low}</span>
+                    )}
+                  </div>
+                )}
+                <p className="text-xs text-text-tertiary mt-1">
+                  {entry.created_at ? new Date(entry.created_at).toLocaleString("ja-JP") : ""}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function ReportsTimeline({
   reports,
   patientId,
@@ -503,6 +587,7 @@ export default function PatientDetailPage({
   const reports = data?.recent_reports ?? [];
   const alerts = data?.alerts ?? [];
   const context = data?.context ?? null;
+  const riskHistory = data?.risk_history ?? [];
   const error = swrError?.message ?? null;
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -579,8 +664,11 @@ export default function PatientDetailPage({
           <div>
             <div className="flex items-center gap-3 mb-1">
               <h2 className="text-2xl font-bold text-text-primary">{patient.name}</h2>
-              <RiskBadge level={getRiskLevel(patient.risk_level)} />
+              <RiskBadge level={getRiskLevel(patient.risk_level)} source={patient.risk_level_source} />
             </div>
+            {patient.risk_level_reason && (
+              <p className="text-xs text-text-tertiary mb-1">{patient.risk_level_reason}</p>
+            )}
             {patient.name_kana && (
               <p className="text-sm text-text-secondary mb-1">{patient.name_kana}</p>
             )}
@@ -637,6 +725,7 @@ export default function PatientDetailPage({
         <BPSSummaryCard context={context} />
         <div className="space-y-6">
           <AlertsCard alerts={alerts} />
+          <RiskHistoryCard history={riskHistory} currentSource={patient.risk_level_source} />
           <FilesCard patientId={id} />
         </div>
       </div>

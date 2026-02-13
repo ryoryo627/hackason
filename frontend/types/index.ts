@@ -7,6 +7,8 @@ export type Sex = "M" | "F";
 export type RiskLevel = "HIGH" | "MEDIUM" | "LOW";
 export type PatientStatus = "active" | "archived";
 
+export type RiskLevelSource = "auto" | "manual";
+
 export interface Patient {
   id: string;
   org_id: string;
@@ -22,9 +24,24 @@ export interface Patient {
   slack_channel_id: string | null;
   slack_channel_name: string | null;
   risk_level: RiskLevel;
+  risk_level_source?: RiskLevelSource;
+  risk_level_reason?: string;
+  risk_level_updated_at?: string;
   status: PatientStatus;
   created_at: string;
   updated_at: string;
+}
+
+export interface RiskHistoryEntry {
+  id: string;
+  previous_level: string;
+  new_level: string;
+  source: RiskLevelSource;
+  reason: string;
+  trigger: string;
+  alert_snapshot: { high: number; medium: number; low: number };
+  created_at: string;
+  created_by: string;
 }
 
 export interface PatientListItem {

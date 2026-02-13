@@ -18,6 +18,7 @@ import {
   type ConnectionStatus,
   type NightSummary,
   type AgentPromptConfig,
+  type RiskHistoryEntry,
 } from "@/lib/api";
 
 // ============================================================
@@ -103,7 +104,19 @@ export function usePatient(patientId: string | null) {
     recent_reports: Report[];
     alerts: Alert[];
     context: BPSContext | null;
+    risk_history: RiskHistoryEntry[];
   }>(patientId ? `/api/patients/${patientId}` : null);
+}
+
+export function useRiskHistory(patientId: string | null, limit = 10) {
+  return useSWR<{
+    patient_id: string;
+    current_risk_level: string;
+    risk_level_source: string;
+    history: RiskHistoryEntry[];
+  }>(
+    patientId ? `/api/patients/${patientId}/risk-history?limit=${limit}` : null
+  );
 }
 
 export function usePatientReports(

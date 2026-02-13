@@ -464,6 +464,90 @@ class FirestoreService:
             }
         )
 
+    # === Risk History ===
+
+    @classmethod
+    async def create_risk_history_entry(
+        cls, patient_id: str, data: dict[str, Any]
+    ) -> str:
+        """Create a risk history entry in the patient's risk_history subcollection."""
+        db = cls.get_client()
+        data["created_at"] = firestore.SERVER_TIMESTAMP
+        doc_ref = (
+            db.collection("patients")
+            .document(patient_id)
+            .collection("risk_history")
+            .document()
+        )
+        doc_ref.set(data)
+        return doc_ref.id
+
+    @classmethod
+    async def list_risk_history(
+        cls, patient_id: str, limit: int = 20
+    ) -> list[dict[str, Any]]:
+        """List risk history entries for a patient (newest first)."""
+        db = cls.get_client()
+        query = (
+            db.collection("patients")
+            .document(patient_id)
+            .collection("risk_history")
+            .order_by("created_at", direction=firestore.Query.DESCENDING)
+            .limit(limit)
+        )
+        try:
+            docs = query.stream()
+            return [{"id": doc.id, **doc.to_dict()} for doc in docs]
+        except Exception:
+            # Fallback if index not yet created
+            query = (
+                db.collection("patients")
+                .document(patient_id)
+                .collection("risk_history")
+                .limit(limit)
+            )
+            docs = query.stream()
+            results = [{"id": doc.id, **doc.to_dict()} for doc in docs]
+            results.sort(key=lambda x: x.get("created_at", "") or "", reverse=True)
+            return results[:limit]
+
+    @classmethod
+    async def get_latest_alert_timestamp(cls, patient_id: str) -> datetime | None:
+        """Get the created_at timestamp of the most recent alert for a patient."""
+        db = cls.get_client()
+        query = (
+            db.collection("patients")
+            .document(patient_id)
+            .collection("alerts")
+            .order_by("created_at", direction=firestore.Query.DESCENDING)
+            .limit(1)
+        )
+        try:
+            docs = list(query.stream())
+        except Exception:
+            # Fallback without order_by
+            docs = list(
+                db.collection("patients")
+                .document(patient_id)
+                .collection("alerts")
+                .limit(50)
+                .stream()
+            )
+            docs.sort(
+                key=lambda d: d.to_dict().get("created_at", "") or "",
+                reverse=True,
+            )
+            docs = docs[:1]
+
+        if not docs:
+            return None
+
+        data = docs[0].to_dict()
+        created_at = data.get("created_at")
+        if isinstance(created_at, datetime):
+            return created_at
+        return None
+
     # === Service Configs ===
 
     @classmethod

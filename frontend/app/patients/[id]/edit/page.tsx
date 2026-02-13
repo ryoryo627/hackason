@@ -55,6 +55,7 @@ export default function EditPatientPage({
   const [careLevel, setCareLevel] = useState("");
   const [status, setStatus] = useState("");
   const [riskLevel, setRiskLevel] = useState("");
+  const [riskLevelSource, setRiskLevelSource] = useState("");
 
   // 在宅5つの呪文
   const [insuranceType, setInsuranceType] = useState("");
@@ -98,6 +99,7 @@ export default function EditPatientPage({
         setCareLevel(p.care_level || "");
         setStatus(p.status || "active");
         setRiskLevel(p.risk_level || "low");
+        setRiskLevelSource(p.risk_level_source || "manual");
         // 5つの呪文
         setInsuranceType(p.insurance_type || "");
         setAdlDescription(p.adl_description || "");
@@ -586,16 +588,23 @@ export default function EditPatientPage({
                   { value: "discharged", label: "退院済み" },
                 ]}
               />
-              <Select
-                label="リスクレベル"
-                value={riskLevel}
-                onChange={(val) => setRiskLevel(val)}
-                options={[
-                  { value: "low", label: "低" },
-                  { value: "medium", label: "中" },
-                  { value: "high", label: "高" },
-                ]}
-              />
+              <div>
+                <Select
+                  label="リスクレベル"
+                  value={riskLevel}
+                  onChange={(val) => setRiskLevel(val)}
+                  options={[
+                    { value: "low", label: "低" },
+                    { value: "medium", label: "中" },
+                    { value: "high", label: "高" },
+                  ]}
+                />
+                {riskLevelSource === "auto" && (
+                  <p className="text-xs text-warning mt-1">
+                    現在AIが自動判定中です。手動で変更すると自動ディエスカレーションが停止します。
+                  </p>
+                )}
+              </div>
             </div>
           </Card>
 

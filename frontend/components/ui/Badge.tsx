@@ -44,7 +44,7 @@ export function Badge({ children, variant = "default", size = "sm", dot = false 
 }
 
 // Risk level badge helper
-export function RiskBadge({ level }: { level: "HIGH" | "MEDIUM" | "LOW" }) {
+export function RiskBadge({ level, source }: { level: "HIGH" | "MEDIUM" | "LOW"; source?: "auto" | "manual" }) {
   const config = {
     HIGH: { variant: "danger" as const, label: "高リスク" },
     MEDIUM: { variant: "warning" as const, label: "中リスク" },
@@ -52,7 +52,14 @@ export function RiskBadge({ level }: { level: "HIGH" | "MEDIUM" | "LOW" }) {
   };
 
   const { variant, label } = config[level];
-  return <Badge variant={variant} dot>{label}</Badge>;
+  return (
+    <Badge variant={variant} dot>
+      {source === "auto" && (
+        <span className="text-[10px] font-bold opacity-70 mr-0.5" title="AI自動判定">AI</span>
+      )}
+      {label}
+    </Badge>
+  );
 }
 
 // Alert severity badge helper

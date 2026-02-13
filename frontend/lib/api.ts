@@ -289,6 +289,18 @@ export const setupApi = {
 // Patients API
 // ============================================================
 
+export interface RiskHistoryEntry {
+  id: string;
+  previous_level: string;
+  new_level: string;
+  source: "auto" | "manual";
+  reason: string;
+  trigger: string;
+  alert_snapshot: { high: number; medium: number; low: number };
+  created_at: string;
+  created_by: string;
+}
+
 export interface Patient {
   id: string;
   name: string;
@@ -304,6 +316,9 @@ export interface Patient {
   care_level?: string;
   status: string;
   risk_level: string;
+  risk_level_source?: "auto" | "manual";
+  risk_level_reason?: string;
+  risk_level_updated_at?: string;
   slack_channel_id?: string;
   slack_channel_name?: string;
   org_id: string;
@@ -446,6 +461,7 @@ export const patientsApi = {
     recent_reports: Report[];
     alerts: Alert[];
     context: BPSContext | null;
+    risk_history: RiskHistoryEntry[];
   }> => {
     return apiRequest(`/api/patients/${patientId}`);
   },
@@ -641,6 +657,23 @@ export const patientsApi = {
     fileId: string
   ): Promise<{ url: string; file_name: string; file_type: string }> => {
     return apiRequest(`/api/patients/${patientId}/files/${fileId}/url`);
+  },
+
+  /**
+   * Get risk level change history.
+   */
+  getRiskHistory: (
+    patientId: string,
+    limit?: number
+  ): Promise<{
+    patient_id: string;
+    current_risk_level: string;
+    risk_level_source: string;
+    history: RiskHistoryEntry[];
+  }> => {
+    return apiRequest(
+      `/api/patients/${patientId}/risk-history?limit=${limit || 20}`
+    );
   },
 
   /**

@@ -162,6 +162,11 @@ class AlertAgent(BaseAgent):
             alert_data["id"] = alert_id
             saved_alerts.append(alert_data)
 
+        # Recalculate risk level if new alerts were created
+        if saved_alerts:
+            from services.risk_service import RiskService
+            await RiskService.recalculate(patient_id, trigger="alert_created")
+
         return {
             "success": True,
             "alerts": saved_alerts,

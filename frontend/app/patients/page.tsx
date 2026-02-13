@@ -435,7 +435,7 @@ export default function PatientsPage() {
                     <td className="py-3 px-4 text-text-secondary">{patient.facility || "-"}</td>
                     <td className="py-3 px-4 text-text-secondary">{patient.area || "-"}</td>
                     <td className="py-3 px-4">
-                      <RiskBadge level={getRiskLevel(patient.risk_level)} />
+                      <RiskBadge level={getRiskLevel(patient.risk_level)} source={patient.risk_level_source} />
                     </td>
                     <td className="py-3 px-4">
                       {patient.primary_diagnosis ? (

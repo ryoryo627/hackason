@@ -94,7 +94,11 @@ async def acknowledge_alert(
         alert_id=alert_id,
         acknowledged_by=acknowledged_by,
     )
-    
+
+    # Recalculate risk level after acknowledgment
+    from services.risk_service import RiskService
+    await RiskService.recalculate(patient_id, trigger="alert_acknowledged")
+
     return {
         "success": True,
         "alert_id": alert_id,
@@ -159,6 +163,10 @@ async def scan_patient_alerts(
         patient_id,
         new_report=new_report,
     )
+
+    # Recalculate risk level after scan
+    from services.risk_service import RiskService
+    await RiskService.recalculate(patient_id, trigger="alert_scan")
 
     return {
         "success": result.get("success", False),

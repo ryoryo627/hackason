@@ -5,7 +5,7 @@ Patients API - Patient management with Slack channel integration.
 import asyncio
 import logging
 import uuid
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
@@ -183,21 +183,25 @@ async def get_patient(patient_id: str) -> dict[str, Any]:
     patient = await FirestoreService.get_patient(patient_id)
     if not patient:
         raise HTTPException(status_code=404, detail="患者が見つかりません")
-    
+
     # Get recent reports
     reports = await FirestoreService.list_reports(patient_id, limit=10)
-    
+
     # Get alerts
     alerts = await FirestoreService.list_alerts(patient_id=patient_id, limit=5)
-    
+
     # Get context
     context = await FirestoreService.get_patient_context(patient_id)
-    
+
+    # Get recent risk history (latest 5)
+    risk_history = await FirestoreService.list_risk_history(patient_id, limit=5)
+
     return {
         "patient": patient,
         "recent_reports": reports,
         "alerts": alerts,
         "context": context,
+        "risk_history": risk_history,
     }
 
 
@@ -225,6 +229,7 @@ async def create_patient(request: PatientCreateRequest) -> dict[str, Any]:
         "area": request.area,
         "care_level": request.care_level,
         "risk_level": "low",
+        "risk_level_source": "auto",
         "team_member_ids": request.team_member_ids,
         "medical_procedures": request.medical_procedures,
         "residence_type": request.residence_type,
@@ -351,6 +356,7 @@ async def bulk_create_patients(request: BulkPatientCreateRequest) -> dict[str, A
                 "area": patient.area,
                 "care_level": patient.care_level,
                 "risk_level": "low",
+                "risk_level_source": "auto",
                 "team_member_ids": [],
             }
 
@@ -635,8 +641,25 @@ async def update_patient(patient_id: str, request: PatientUpdateRequest) -> dict
             else:
                 update_data[field] = value
 
+    # Handle manual risk_level change
+    if "risk_level" in update_data and update_data["risk_level"] != patient.get("risk_level"):
+        previous_level = patient.get("risk_level", "low")
+        update_data["risk_level_source"] = "manual"
+        update_data["risk_level_reason"] = "手動変更"
+        update_data["risk_level_updated_at"] = datetime.now().isoformat()
+
     if update_data:
         await FirestoreService.update_patient(patient_id, update_data)
+
+    # Record manual risk change in history
+    if "risk_level" in update_data and update_data.get("risk_level_source") == "manual":
+        from services.risk_service import RiskService
+        await RiskService.record_manual_change(
+            patient_id=patient_id,
+            new_level=update_data["risk_level"],
+            changed_by="user",
+            previous_level=patient.get("risk_level", "low"),
+        )
 
     # Slack synchronization
     slack_sync = {}
@@ -745,6 +768,28 @@ async def delete_patient(patient_id: str) -> dict[str, Any]:
     }
 
 
+@router.get("/{patient_id}/risk-history")
+async def get_risk_history(
+    patient_id: str,
+    limit: int = Query(20, description="Maximum number of history entries"),
+) -> dict[str, Any]:
+    """
+    Get risk level change history for a patient.
+    """
+    patient = await FirestoreService.get_patient(patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="患者が見つかりません")
+
+    history = await FirestoreService.list_risk_history(patient_id, limit=limit)
+
+    return {
+        "patient_id": patient_id,
+        "current_risk_level": patient.get("risk_level", "low"),
+        "risk_level_source": patient.get("risk_level_source", "manual"),
+        "history": history,
+    }
+
+
 @router.get("/{patient_id}/reports")
 async def get_patient_reports(
     patient_id: str,
@@ -809,7 +854,11 @@ async def acknowledge_alert(
         alert_id=alert_id,
         acknowledged_by=acknowledged_by,
     )
-    
+
+    # Recalculate risk level after acknowledgment
+    from services.risk_service import RiskService
+    await RiskService.recalculate(patient_id, trigger="alert_acknowledged")
+
     return {
         "success": True,
         "alert_id": alert_id,
