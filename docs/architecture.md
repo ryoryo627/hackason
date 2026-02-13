@@ -36,9 +36,9 @@
 │  データ層                                                           │
 │  ┌──────────────────────────────────────────────────────────────┐   │
 │  │  Cloud Firestore           │  RAG Knowledge Base              │   │
-│  │  - organizations/          │  - text-embedding-005 (768次元)  │   │
+│  │  - organizations/          │  - gemini-embedding-001 (768次元)  │   │
 │  │  - patients/               │  - Firestore + cosine similarity │   │
-│  │  - reports/ (sub)          │  (✅ Embedding検索実装済み)      │   │
+│  │  - reports/ (sub)          │                                 │   │
 │  │  - alerts/ (sub)           │                                 │   │
 │  │  - knowledge_documents/    │  Cloud Storage (GCS)            │   │
 │  │  - service_configs/        │  - PDF/画像/音声 生データ        │   │
@@ -56,8 +56,8 @@
 |---------|------|------|-----------|
 | AIエージェント | ADK | マルチエージェントオーケストレーション | latest |
 | LLM | Gemini API | BPS構造化・臨床推論・サマリー生成 | **gemini-3-flash-preview** |
-| Embedding | text-embedding-005 | RAGナレッジベースのベクトル化 | - |
-| ベクトル検索 | Firestore + cosine similarity | RAG Embedding検索（text-embedding-005, 768次元） | ✅ |
+| Embedding | gemini-embedding-001 | RAGナレッジベースのベクトル化 | - |
+| ベクトル検索 | Firestore + cosine similarity | RAG Embedding検索 | — |
 | データベース | Cloud Firestore | 患者・報告・アラート・設定の永続化 | - |
 | 設定管理 | Firestore service_configs | APIキー・トークンの一元管理 | - |
 | ファイルストレージ | Cloud Storage | PDF/画像/音声/ナレッジファイル | - |
@@ -65,7 +65,7 @@
 | 定時タスク | Cloud Scheduler | 朝8時スキャン | - |
 | 認証 | Firebase Authentication | Admin UIアクセス制御 | v11.0 |
 | バックエンド | Python + FastAPI | REST API + Slack Events + ADK | 3.12 |
-| フロントエンド | **Next.js + TypeScript + Tailwind CSS** | Admin UI（App Router, Client Components中心） | **Next.js 16.1.6, React 19.2.3, Tailwind 4** |
+| フロントエンド | **Next.js + TypeScript + Tailwind CSS** | Admin UI | **Next.js 16.1.6, React 19.2.3, Tailwind 4** |
 | データフェッチ | SWR | クライアントサイドデータキャッシュ | 2.4.0 |
 | 外部連携 | Slack Web API + Events API | 多職種インターフェース | - |
 
@@ -84,9 +84,9 @@ Slack Events APIの受信、ADKエージェントの実行、REST APIの配信�
 | メモリ | 1GiB |
 | CPU | 1 |
 | 最大インスタンス | 10 |
-| 最小インスタンス | 0（MVP）/ 1（本番推奨） |
+| 最小インスタンス | 0 / 1 |
 | リージョン | asia-northeast1 |
-| 認証 | Firebase ID Token（REST API） + Slack署名検証（Events API） |
+| 認証 | Firebase ID Token + Slack署名検証 |
 
 **エンドポイント:**
 
@@ -104,29 +104,29 @@ Slack Events APIの受信、ADKエージェントの実行、REST APIの配信�
 
 ### 3.2 homecare-admin
 
-Admin UI（Next.js 16.1.6 App Router）の配信を担当。Client Componentsを中心に、SWRでhomecare-botのREST APIからデータ取得。
+Admin UIの配信を担当。SWRでhomecare-botのREST APIからデータ取得。
 
 | 項目 | 設定 |
 |------|------|
 | ランタイム | Node.js 20（Next.js standalone） |
-| フレームワーク | Next.js 16.1.6（App Router, Client Components中心） |
+| フレームワーク | Next.js 16.1.6 |
 | メモリ | 1GiB |
 | CPU | 1 |
 | 最大インスタンス | 5 |
 | リージョン | asia-northeast1 |
-| 認証 | Firebase Authentication（クライアントサイドルーティング） |
+| 認証 | Firebase Authentication |
 
 **エンドポイント:**
 - `/` — Admin UI（SSR + クライアントナビゲーション）
 - SWR + REST APIクライアントでhomecare-botのAPIを呼び出し
 
 **フロントエンド技術:**
-- Next.js 16.1.6 App Router
-- React 19.2.3 Client Components
-- Tailwind CSS 4
-- SWR 2.4.0（データフェッチ・キャッシュ）
-- Firebase Auth 11.0（認証）
-- Turbopack（高速開発ビルド）
+- Next.js 16.1.6 App Router + React 19.2.3 + Tailwind CSS 4
+- SWR 2.4.0 — SWRConfig Providerでグローバル設定を一元化、全データフェッチフックをSWR統一
+- useDebounceフック — 検索入力のデバウンス処理
+- App Router `error.tsx` / `loading.tsx` — エラーバウンダリとスケルトンUI
+- Firebase Auth 11.0
+- Turbopack
 
 ## 4. セキュリティ設計
 
@@ -134,7 +134,7 @@ Admin UI（Next.js 16.1.6 App Router）の配信を担当。Client Componentsを
 
 | 対象 | 方式 |
 |------|------|
-| Admin UI | Firebase Authentication（メール+パスワード / Google Sign-In） |
+| Admin UI | Firebase Authentication |
 | REST API | Firebase ID Token検証（Authorizationヘッダー） |
 | Slack Bot | Slack Signing Secret署名検証 |
 | Cloud Scheduler → Bot | OIDC Token検証 |
@@ -178,7 +178,7 @@ GitHub (main branch)
 | リソース | 名前 | 用途 |
 |---------|------|------|
 | Cloud Run | homecare-bot | Slack Bot + ADKエージェント |
-| Cloud Run | homecare-admin | Admin UI（Next.js SSR） |
+| Cloud Run | homecare-admin | Admin UI |
 | Firestore | (default) | アプリケーションデータ |
 | GCS Bucket | homecare-ai-files | 生ファイルストレージ |
 | GCS Bucket | homecare-ai-knowledge | ナレッジベースファイル |
@@ -238,7 +238,7 @@ GitHub (main branch)
 
 ```
 エージェント処理中 → RAG検索要求
-  ├─ クエリをtext-embedding-005でベクトル化
+  ├─ クエリをgemini-embedding-001でベクトル化
   ├─ Vertex AI Vector Searchで類似チャンク検索
   ├─ エージェントのカテゴリバインドでフィルタ
   ├─ Top-Kチャンクを取得

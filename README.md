@@ -179,10 +179,13 @@ graph TB
     ALERT --> GEMINI
     SUMMARY --> GEMINI
     INTAKE --> FS
+    INTAKE --> GCS
     CONTEXT --> FS
     CONTEXT --> VS
     ALERT --> FS
     SUMMARY --> FS
+    BOT --> GCS
+    WEB -->|Signed URL| GCS
     SCHED -->|Cron| BOT
 ```
 
@@ -191,8 +194,8 @@ graph TB
 | エージェント | 役割 | Thinking Level | 入力 | 出力 |
 |-------------|------|---------------|------|------|
 | Root Agent | リクエストルーティング | Low | Slackイベント | 適切なAgentへ振り分け |
-| Intake Agent | BPS構造化 | Medium | テキスト / PDF / 画像 | BPS分類 + Firestore保存 |
-| Context Agent | 文脈参照回答 | High | @bot 質問 | RAG + 蓄積データに基づく回答 |
+| Intake Agent | BPS構造化 | Low | テキスト / PDF / 画像 | BPS分類 + Firestore保存 |
+| Context Agent | 文脈参照回答 | Medium | @bot 質問 | RAG + 蓄積データに基づく回答 |
 | Alert Agent | 異変パターン検知 | High | 時系列BPSデータ | アラート生成 + Slack通知 |
 | Summary Agent | 経過サマリー | Medium | 患者BPSデータ | BPS経過要約（オンコール引継） |
 
@@ -222,10 +225,10 @@ graph LR
 | GCPサービス | 用途 | 活用ポイント |
 |------------|------|-------------|
 | Gemini 3 Flash Preview | LLM推論 | google-genaiパッケージ経由でBPS構造化・臨床推論・異変検知を処理。Thinking Level制御で推論深度を調整 |
-| Embedding + Firestore | RAG検索 | 診療ガイドラインやBPS理論等をベクトル化。text-embedding-005で768次元embedding生成し、Firestoreに保存してnumpy cosine similarityで検索 |
+| Embedding + Firestore | RAG検索 | 診療ガイドラインやBPS理論等をベクトル化。gemini-embedding-001で768次元embedding生成し、Firestoreに保存してnumpy cosine similarityで検索 |
 | Cloud Firestore | NoSQLデータベース | 患者・報告・アラート・設定・embeddingベクトルを管理。リアルタイムリスナーでUI即時反映 |
 | Cloud Run | サーバーレス実行 | Bot APIとAdmin UIを独立デプロイ。コールドスタート最適化済み |
-| Cloud Storage | ファイルストレージ | PDFアップロード・RAGドキュメント保存 |
+| Cloud Storage | ファイルストレージ | ナレッジ原本・Slack添付ファイル保存、Signed URLによるフロントエンド配信 |
 | Cloud Scheduler | 定時ジョブ | 夜間サマリー自動生成（18:00〜08:00のイベント集約） |
 | Firebase Authentication | ユーザー認証 | Google OAuthとメール/パスワード認証でAdmin UIのアクセスを制御 |
 
@@ -237,7 +240,7 @@ graph LR
 |---------|------|-----------|
 | AIエージェント | 独自マルチエージェントフレームワーク (google-genai) | — |
 | LLM | Gemini 3 Flash Preview (Gemini API) | — |
-| RAG Embedding | text-embedding-005 | 768次元 |
+| RAG Embedding | gemini-embedding-001 | 768次元 |
 | ベクトル検索 | Firestore + numpy cosine similarity | — |
 | データベース | Cloud Firestore | — |
 | ファイルストレージ | Cloud Storage | — |
@@ -272,6 +275,7 @@ graph LR
 - [x] RAGナレッジベース管理（資料アップロード・カテゴリ分類・検索テスト）
 - [x] サービス接続設定（Slack・Gemini API）
 - [x] マスタ管理（事業所・地区・職種）
+- [x] ユーザー管理（招待・ロール設定・削除）
 - [x] 組織設定（組織名・スタッフ管理）
 - [x] セットアップウィザード（初回設定ガイド）
 
@@ -360,18 +364,22 @@ cd frontend && gcloud run deploy homecare-admin --source .
 hackason/
 ├── backend/                    # Python バックエンド
 │   ├── agents/                 # マルチエージェント (Gemini API)
-│   │   ├── root_agent.py       #   ルーティングAgent
-│   │   ├── intake_agent.py     #   BPS構造化Agent
-│   │   ├── context_agent.py    #   文脈参照回答Agent
-│   │   ├── alert_agent.py      #   異変検知Agent
-│   │   ├── summary_agent.py    #   経過サマリーAgent
-│   │   └── base_agent.py       #   共通ベースクラス
-│   ├── api/                    # REST API エンドポイント
+│   │   ├── root_agent.py       #   ルーティング
+│   │   ├── intake_agent.py     #   BPS構造化
+│   │   ├── context_agent.py    #   文脈参照回答
+│   │   ├── alert_agent.py      #   異変検知
+│   │   ├── summary_agent.py    #   経過サマリー
+│   │   └── base_agent.py       #   共通基底
+│   ├── api/                    # REST API
 │   │   ├── patients.py         #   患者CRUD
-│   │   ├── alerts.py           #   アラート管理
-│   │   ├── knowledge.py        #   RAGナレッジ管理
-│   │   ├── dashboard.py        #   ダッシュボード集計
-│   │   └── settings.py         #   設定管理
+│   │   ├── alerts.py           #   アラート
+│   │   ├── knowledge.py        #   ナレッジ
+│   │   ├── dashboard.py        #   ダッシュボード
+│   │   ├── settings.py         #   設定
+│   │   ├── setup.py            #   セットアップ
+│   │   └── users.py            #   ユーザー
+│   ├── auth/                   # Firebase認証
+│   │   └── dependencies.py     #   認証依存注入
 │   ├── models/                 # データモデル
 │   ├── services/               # ビジネスロジック
 │   │   ├── firestore_service.py
@@ -382,16 +390,20 @@ hackason/
 │   ├── main.py                 # FastAPI エントリポイント
 │   └── Dockerfile
 ├── frontend/                   # Next.js フロントエンド
-│   ├── app/                    # App Router ページ
+│   ├── app/                    # App Router
+│   │   ├── layout.tsx          #   ルートレイアウト
+│   │   ├── providers.tsx       #   SWRグローバル設定
+│   │   ├── error.tsx           #   エラーバウンダリ
 │   │   ├── page.tsx            #   ダッシュボード
 │   │   ├── patients/           #   患者一覧・詳細・登録
 │   │   ├── alerts/             #   アラート管理
-│   │   ├── settings/           #   設定（API/Agent/マスタ/組織）
-│   │   ├── setup/              #   セットアップウィザード
+│   │   ├── knowledge/          #   ナレッジベース
+│   │   ├── settings/           #   設定
+│   │   ├── setup/              #   セットアップ
 │   │   └── login/              #   ログイン
 │   ├── components/             # UIコンポーネント
-│   │   ├── ui/                 #   共通UI（Button/Card/Modal等）
-│   │   └── layout/             #   レイアウト（Sidebar/Header）
+│   │   ├── ui/                 #   共通UI
+│   │   └── layout/             #   レイアウト
 │   ├── hooks/                  # カスタムフック
 │   ├── lib/                    # ユーティリティ
 │   └── Dockerfile
@@ -441,7 +453,7 @@ hackason/
 | ポイント | 説明 |
 |---------|------|
 | マルチエージェント設計 | 各エージェントが独立した責務を持ち、Root Agentがルーティングする。新しいAgentの追加が容易な構造になっている |
-| RAGナレッジベース | text-embedding-005とFirestoreによるセマンティック検索。ガイドラインやプロトコルの追加でAIの臨床推論を継続的に強化できる |
+| RAGナレッジベース | gemini-embedding-001とFirestoreによるセマンティック検索。ガイドラインやプロトコルの追加でAIの臨床推論を継続的に強化できる |
 | 設計ドキュメント | 要件定義・アーキテクチャ・データモデル・API・エージェント設計・UI/UX設計を含む8本の設計書を整備 |
 | Cloud Runによるスケーラブル基盤 | Bot APIとAdmin UIを独立デプロイし、トラフィック増に応じた自動スケーリングに対応 |
 
@@ -455,10 +467,10 @@ hackason/
 
 | 領域 | 現在の実装 | 制約・理由 |
 |------|-----------|-----------|
-| AI基盤 | google-genaiパッケージで直接Gemini API呼び出し | ハッカソン期間内に迅速にプロトタイプを構築するため、最もシンプルな統合方法を選択した |
-| エージェント設計 | 独自マルチエージェントフレームワーク | Google ADKの公式パッケージは使わず、base_agent.pyによる独自実装。開発速度を優先した |
-| ベクトル検索 | Firestore + numpy cosine similarity | 全ドキュメントを線形走査するため、大規模データでは性能が低下する。PoC規模では十分 |
-| データセキュリティ | 標準的なFirestore ACL + Firebase Auth | 医療情報に求められるデータレジデンシー、暗号化、監査ログの要件を完全には満たしていない |
+| AI基盤 | google-genaiパッケージで直接Gemini API呼び出し | 迅速なプロトタイプ構築のため最もシンプルな統合方法を選択 |
+| エージェント設計 | 独自マルチエージェントフレームワーク | ADK公式パッケージは使わず、base_agent.pyで独自実装。開発速度を優先 |
+| ベクトル検索 | Firestore + numpy cosine similarity | 線形走査のため大規模データでは性能低下。PoC規模では十分 |
+| データセキュリティ | Firestore ACL + Firebase Auth | 医療情報に求められるデータレジデンシー・暗号化・監査ログを完全には満たさない |
 
 ### 12.2 本番環境への移行計画
 

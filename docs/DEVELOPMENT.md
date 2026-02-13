@@ -12,22 +12,23 @@ Slackを患者ごとの情報集約ハブとし、Google Cloud上のAIエージ�
 - **AIフレームワーク**: ADK (Agent Development Kit)
 - **LLM**: Gemini API (gemini-3-flash-preview)
 - **データベース**: Cloud Firestore
-- **ベクトル検索**: Firestore + text-embedding-005 + cosine similarity
+- **ベクトル検索**: Firestore + gemini-embedding-001 + cosine similarity
 - **ファイルストレージ**: Cloud Storage (GCS)
 - **実行環境**: Cloud Run（2サービス）
 - **定時タスク**: Cloud Scheduler
 - **設定管理**: Firestore `service_configs` コレクション
 - **認証**: Firebase Authentication
 - **外部連携**: Slack Bot (Events API + Web API)
-- **フロントエンド**: Next.js 16 + Tailwind CSS 4（App Router, Client Components中心）
-- **データフェッチ**: SWR 2.4.0（クライアントサイドデータキャッシュ）
+- **フロントエンド**: Next.js 16 + Tailwind CSS 4
+- **データフェッチ**: SWR 2.4.0
+- **エラー・ローディング**: App Router error.tsx + loading.tsx
 
 ## Cloud Run サービス構成
 
 | サービス名 | 役割 | 主要エンドポイント |
 |-----------|------|-------------------|
 | `homecare-bot` | Slack Events受信 + ADKエージェント実行 + REST API + Cronハンドラ | `/slack/events`, `/api/*`, `/cron/morning-scan` |
-| `homecare-admin` | Admin UI配信（Next.js SSR） | `/` (SPA) |
+| `homecare-admin` | Admin UI配信 | `/` (SPA) |
 
 ## ディレクトリ構成
 
@@ -79,23 +80,30 @@ hackason/
     ├── next.config.ts
     ├── Dockerfile
     ├── app/                     # App Router
-    │   ├── layout.tsx           # ルートレイアウト
+    │   ├── layout.tsx           # ルートレイアウト（Providers含む）
+    │   ├── providers.tsx        # SWRConfig グローバルプロバイダ
+    │   ├── error.tsx            # ルートレベル エラーバウンダリ
     │   ├── page.tsx             # ダッシュボード
     │   ├── login/page.tsx       # ログイン画面
     │   ├── setup/page.tsx       # セットアップウィザード
     │   ├── patients/            # 患者管理
+    │   │   ├── loading.tsx      # 患者一覧 スケルトンUI
+    │   │   └── [id]/
+    │   │       ├── loading.tsx  # 患者詳細 スケルトンUI
+    │   │       └── error.tsx    # 患者詳細 エラーバウンダリ
     │   ├── alerts/page.tsx      # アラート一覧
     │   ├── knowledge/page.tsx   # ナレッジベース
     │   └── settings/            # 設定画面群
     ├── components/              # 共通コンポーネント
-    │   ├── ui/                  # 基本UIコンポーネント
+    │   ├── ui/                  # 基本UIコンポーネント（Skeleton含む）
     │   └── layout/              # レイアウトコンポーネント
     ├── hooks/                   # カスタムフック
     │   ├── useAuth.ts           # Firebase認証フック
-    │   └── useApi.ts            # SWRベースAPIフック
+    │   ├── useApi.ts            # SWR APIフック
+    │   └── useDebounce.ts       # 汎用デバウンスフック
     └── lib/                     # ユーティリティ
         ├── firebase.ts          # Firebase初期化
-        ├── api.ts               # REST APIクライアント（認証付き）
+        ├── api.ts               # REST APIクライアント
         └── utils.ts             # ユーティリティ関数
 ```
 
@@ -136,7 +144,7 @@ npm run start     # 本番サーバー起動
 ### RAGナレッジベース
 - 8カテゴリ（BPSモデル、臨床推論、診療ガイドライン、在宅医療制度、緩和ケア、老年医学、薬剤管理、院内プロトコル）
 - 各エージェントにどのカテゴリをバインドするかをAdmin UIで設定可能
-- Embedding: text-embedding-005（768次元）、Vector Store: Firestore + cosine similarity
+- Embedding: gemini-embedding-001（768次元）、Vector Store: Firestore + cosine similarity
 
 ### 設定管理（Firestore service_configs）
 全APIキー・トークンはFirestoreの `service_configs` コレクションに組織単位で保存。ブラウザのlocalStorage/sessionStorageには一切保持しない。
