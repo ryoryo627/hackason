@@ -1,5 +1,5 @@
 """
-ADK Agents for HomeCare AI.
+AI Agents for HomeCare AI.
 
 Multi-agent system for BPS-aware patient care support.
 """

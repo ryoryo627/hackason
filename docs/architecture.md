@@ -17,9 +17,9 @@
 ├──────────┼───────────────────────────────┼──────────────────────────┤
 │  処理層  │                               │                          │
 │  ┌───────▼───────────────────────────────▼────────────────────────┐ │
-│  │  Cloud Run: homecare-bot（FastAPI + ADK）                       │ │
+│  │  Cloud Run: homecare-bot（FastAPI + google-genai SDK）            │ │
 │  │  ┌─────────────────────┐  ┌──────────────────────────────────┐ │ │
-│  │  │ ADK Root Agent      │  │ FastAPI REST API                 │ │ │
+│  │  │ Root Agent           │  │ FastAPI REST API                 │ │ │
 │  │  │ ├ Intake Agent      │  │ ├ /api/dashboard  (統計・フィード)│ │ │
 │  │  │ ├ Context Agent ◄───┤  │ ├ /api/patients   (CRUD+Slack)  │ │ │
 │  │  │ ├ Alert Agent       │  │ ├ /api/alerts     (管理・統計)   │ │ │
@@ -56,7 +56,7 @@
 
 | レイヤー | 技術 | 用途 | バージョン |
 |---------|------|------|-----------|
-| AIエージェント | ADK | マルチエージェントオーケストレーション | latest |
+| AIエージェント | google-genai SDK | カスタムマルチエージェント | latest |
 | LLM | Gemini API | BPS構造化・臨床推論・サマリー生成 | **gemini-3-flash-preview** |
 | Embedding | gemini-embedding-001 | RAGナレッジベースのベクトル化 | - |
 | ベクトル検索 | Firestore + cosine similarity | RAG Embedding検索 | — |
@@ -66,18 +66,18 @@
 | アプリ実行 | Cloud Run | Bot + Admin UIのホスティング | gen2 |
 | 定時タスク | Cloud Scheduler | 朝8時スキャン | - |
 | 認証 | Firebase Authentication | Admin UIアクセス制御 | v11.0 |
-| バックエンド | Python + FastAPI | REST API + Slack Events + ADK | 3.12 |
+| バックエンド | Python + FastAPI | REST API + Slack Events + google-genai SDK | 3.12 |
 | フロントエンド | **Next.js + TypeScript + Tailwind CSS** | Admin UI | **Next.js 16.1.6, React 19.2.3, Tailwind 4** |
 | データフェッチ | SWR | クライアントサイドデータキャッシュ | 2.4.0 |
 | 外部連携 | Slack Web API + Events API | 多職種インターフェース | - |
 
-> **技術選定の詳細**: Gemini 3 Flash Preview（ADKエージェント用LLM）、Next.js 16（Admin UIフレームワーク）
+> **技術選定の詳細**: Gemini 3 Flash Preview（エージェント用LLM）、Next.js 16（Admin UIフレームワーク）
 
 ## 3. Cloud Run サービス設計
 
 ### 3.1 homecare-bot
 
-Slack Events APIの受信、ADKエージェントの実行、REST APIの配信を担当。
+Slack Events APIの受信、AIエージェントの実行、REST APIの配信を担当。
 
 | 項目 | 設定 |
 |------|------|
@@ -180,7 +180,7 @@ GitHub (main branch)
 
 | リソース | 名前 | 用途 |
 |---------|------|------|
-| Cloud Run | homecare-bot | Slack Bot + ADKエージェント |
+| Cloud Run | homecare-bot | Slack Bot + AIエージェント |
 | Cloud Run | homecare-admin | Admin UI |
 | Firestore | (default) | アプリケーションデータ |
 | GCS Bucket | (バケット名) | 生ファイルストレージ |
@@ -233,7 +233,7 @@ GitHub (main branch)
 多職種 → Slack #pt-{患者名} Botリプライ
   → POST /slack/events (Events API)
   → 署名検証
-  → ADK Root Agent → Intake Agent
+  → Root Agent → Intake Agent
     ├─ テキスト → Gemini BPS構造化
     ├─ PDF → テキスト抽出 → BPS構造化
     └─ 画像 → Gemini Vision → BPS構造化

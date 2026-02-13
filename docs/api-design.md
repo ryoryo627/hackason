@@ -488,7 +488,7 @@ Slack Events API受信。Slack署名検証で保護。
 処理フロー:
 1. `X-Slack-Signature` ヘッダーで署名検証
 2. `url_verification` チャレンジ応答
-3. イベントタイプ判定 → ADK Root Agentにディスパッチ
+3. イベントタイプ判定 → Root Agentにディスパッチ
 
 ### POST /cron/morning-scan
 Cloud Schedulerからの朝8時トリガー。

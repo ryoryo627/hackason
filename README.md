@@ -25,11 +25,9 @@
 </p>
 
 <p align="center">
-  <a href="#">Admin UI デモ（スクリーンショット参照）</a>
+  <a href="https://zenn.dev/kamuigp/articles/f7f3c8f391d26b">解説記事（Zenn）</a>
   &nbsp;|&nbsp;
-  <a href="#">解説記事（Zenn）</a>
-  &nbsp;|&nbsp;
-  <a href="#">デモ動画</a>
+  <a href="https://youtu.be/k9JduvBhLEw">デモ動画</a>
 </p>
 
 Slackを患者ごとの情報集約ハブとし、Google Cloud上のAIエージェントが多職種からの報告をBio-Psycho-Social（BPS）フレームワークで自動構造化・蓄積・横断分析するシステムです。自然言語のチャット投稿から臨床的な異変パターンを検知し、Admin UIで患者状態の俯瞰・アラート管理・ナレッジベース運用を行えます。

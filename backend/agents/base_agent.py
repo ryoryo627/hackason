@@ -1,5 +1,5 @@
 """
-Base Agent - Foundation for all ADK agents in HomeCare AI.
+Base Agent - Foundation for all AI agents in HomeCare AI.
 
 Provides common functionality for Gemini API integration and BPS processing.
 """

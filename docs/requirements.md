@@ -23,7 +23,7 @@
 
 ## 2. ソリューション概要
 
-Slackを患者ごとの情報集約ハブとし、Google Cloud上のAIエージェント群（ADK）が多職種からの報告をBio-Psycho-Social（BPS）フレームワークで構造化・蓄積・分析する。
+Slackを患者ごとの情報集約ハブとし、Google Cloud上のAIエージェント群（google-genai SDK）が多職種からの報告をBio-Psycho-Social（BPS）フレームワークで構造化・蓄積・分析する。
 
 差別化3点:
 1. **能動的AI臨床推論**: Alert Agentが複数職種×時系列データを横断分析し、異変パターンを自動検知
@@ -139,7 +139,7 @@ Slackを患者ごとの情報集約ハブとし、Google Cloud上のAIエージ�
 - 3モードインタラクション: コンテキスト蓄積（Botリプライ）、カジュアルチャット（直接投稿）、AI相談（@bot）
 - 詳細: `slack-bot-design.md`
 
-### 7.3 AIエージェント（ADK）
+### 7.3 AIエージェント（google-genai SDK）
 
 - BaseAgent共通基底 + 5サブエージェント: Intake / Context（SaveAgent含む） / Alert / Summary
 - RAGナレッジベース: 8カテゴリ、エージェント別バインド

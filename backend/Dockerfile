@@ -1,5 +1,5 @@
 # HomeCare Bot - Cloud Run Dockerfile
-# Python 3.12 + FastAPI + ADK
+# Python 3.12 + FastAPI + Custom AI Agents
 
 FROM python:3.12-slim
 

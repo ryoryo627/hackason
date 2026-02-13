@@ -2,7 +2,7 @@
 HomeCare AI Agent - FastAPI Application Entry Point.
 
 This is the main entry point for the homecare-bot Cloud Run service.
-Handles Slack Events API and Cron triggers for ADK agents.
+Handles Slack Events API and Cron triggers for AI agents.
 """
 
 import asyncio
@@ -62,7 +62,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="HomeCare AI Agent",
-    description="Slack Bot and ADK Agents for Home Care Support",
+    description="Slack Bot and AI Agents (google-genai) for Home Care Support",
     version="0.1.0",
     lifespan=lifespan,
 )

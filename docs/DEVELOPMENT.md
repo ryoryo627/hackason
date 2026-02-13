@@ -4,12 +4,12 @@
 
 **HomeCare AI Agent** — 在宅医療支援AIエージェントシステム
 
-Slackを患者ごとの情報集約ハブとし、Google Cloud上のAIエージェント群（ADK）が多職種からの報告をBio-Psycho-Social（BPS）フレームワークで構造化・蓄積・分析するシステム。
+Slackを患者ごとの情報集約ハブとし、Google Cloud上のAIエージェント群（google-genai SDK）が多職種からの報告をBio-Psycho-Social（BPS）フレームワークで構造化・蓄積・分析するシステム。
 
 ## 技術スタック
 
 - **言語**: Python 3.12（バックエンド）、TypeScript（フロントエンド）
-- **AIフレームワーク**: ADK (Agent Development Kit)
+- **AIフレームワーク**: google-genai SDK（カスタムマルチエージェント）
 - **LLM**: Gemini API (gemini-3-flash-preview)
 - **データベース**: Cloud Firestore
 - **ベクトル検索**: Firestore + gemini-embedding-001 + cosine similarity
@@ -27,7 +27,7 @@ Slackを患者ごとの情報集約ハブとし、Google Cloud上のAIエージ�
 
 | サービス名 | 役割 | 主要エンドポイント |
 |-----------|------|-------------------|
-| `homecare-bot` | Slack Events受信 + ADKエージェント実行 + REST API + Cronハンドラ | `/slack/events`, `/api/*`, `/cron/morning-scan` |
+| `homecare-bot` | Slack Events受信 + AIエージェント実行 + REST API + Cronハンドラ | `/slack/events`, `/api/*`, `/cron/morning-scan` |
 | `homecare-admin` | Admin UI配信 | `/` (SPA) |
 
 ## ディレクトリ構成
