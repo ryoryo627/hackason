@@ -188,7 +188,7 @@ service_configs/{service_id}         # API設定（APIキー・トークン直�
 ```typescript
 // patients/{patient_id}/raw_files/{file_id}
 {
-  gcs_uri: string,                   // "gs://homecare-ai-files/patients/{id}/xxx.pdf"
+  gcs_uri: string,                   // "gs://{bucket}/patients/{id}/xxx.pdf"
   file_type: "pdf" | "image" | "voice",
   original_name: string,
   size_bytes: number,

@@ -25,7 +25,7 @@
 </p>
 
 <p align="center">
-  <a href="https://homecare-admin-900198832085.asia-northeast1.run.app/">Admin UI デモ</a>
+  <a href="#">Admin UI デモ（スクリーンショット参照）</a>
   &nbsp;|&nbsp;
   <!-- TODO: Zenn記事URL -->
   <a href="#">解説記事（Zenn）</a>
@@ -101,7 +101,7 @@ Gemini APIを活用した独自のマルチエージェントシステムが、�
 
 ## 3. デモ
 
-Admin UI: [https://homecare-admin-900198832085.asia-northeast1.run.app/](https://homecare-admin-900198832085.asia-northeast1.run.app/)
+Admin UI: デプロイ済み（URLは非公開）
 
 <!-- TODO: デモ動画URL -->
 <!-- デモ動画: [YouTube / Loom リンク](#) -->

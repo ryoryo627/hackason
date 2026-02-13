@@ -180,8 +180,8 @@ GitHub (main branch)
 | Cloud Run | homecare-bot | Slack Bot + ADKエージェント |
 | Cloud Run | homecare-admin | Admin UI |
 | Firestore | (default) | アプリケーションデータ |
-| GCS Bucket | homecare-ai-files | 生ファイルストレージ |
-| GCS Bucket | homecare-ai-knowledge | ナレッジベースファイル |
+| GCS Bucket | (バケット名) | 生ファイルストレージ |
+| GCS Bucket | (バケット名) | ナレッジベースファイル |
 | Vertex AI Vector Search Index | homecare-rag-index | RAGベクトルインデックス |
 | Vertex AI Vector Search Endpoint | homecare-rag-endpoint | RAG検索エンドポイント |
 | Cloud Scheduler Job | morning-scan | 朝8時定時タスク |
