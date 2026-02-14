@@ -3,6 +3,7 @@ name = "homecare-bot"
 version = "0.1.0"
 description = "HomeCare AI Agent - Slack Bot and AI Agents (google-genai)"
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.0",
